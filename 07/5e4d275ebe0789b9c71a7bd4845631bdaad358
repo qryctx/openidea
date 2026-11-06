@@ -1,0 +1,26 @@
+android-support/README.md
+  s_f2a417d53e68e4::t_ba8e4375288b48 30-31
+android-support/tests/renamed-method.py
+  s_f2a417d53e68e4::t_ba8e4375288b48 1-37
+docs/android-variant-pilot.md
+  s_f2a417d53e68e4::t_49e3d8d986e309 46-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "075e4d275ebe0789b9c71a7bd4845631bdaad358",
+  "prompts": {},
+  "logical_commit_id": "075e4d275ebe0789b9c71a7bd4845631bdaad358",
+  "sessions": {
+    "s_f2a417d53e68e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af46-6aed-76d3-a86d-eb319c695285",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "hushangfeng <hushangfeng@bigo.sg>",
+      "total_additions": 891,
+      "total_deletions": 82
+    }
+  }
+}
