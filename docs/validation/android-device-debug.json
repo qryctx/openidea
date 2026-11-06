@@ -1,0 +1,121 @@
+{
+  "fixture": "examples/android-variants",
+  "projectModules": [":app", ":contract"],
+  "device": {
+    "model": "Pixel 6",
+    "androidVersion": 17,
+    "api": 37,
+    "transport": "USB",
+    "samePhysicalPhone": true
+  },
+  "adapter": {
+    "name": "Kotlin Debug Adapter",
+    "version": "0.4.4",
+    "install": "IDE tool manager, optional download"
+  },
+  "firstInvocationEvidence": "MainActivity emits a marker immediately before its first flavorGreeting call and emits a completion marker after setContentView. Each fresh app PID had one pre-call marker and zero completion markers at its line breakpoint, then a completion marker in that same PID after Resume.",
+  "developmentDesktop": [
+    {
+      "variant": "demoDebug",
+      "applicationId": "dev.openide.sample.demo",
+      "pid": 32625,
+      "breakpoint": {
+        "source": "libraries/contracts/src/main/java/dev/openide/sample/contract/JavaGreeting.java",
+        "line": 5,
+        "reason": "breakpoint",
+        "displayedBreakpointHits": 1,
+        "applicationFrames": [
+          {
+            "method": "message",
+            "source": "libraries/contracts/src/main/java/dev/openide/sample/contract/JavaGreeting.java",
+            "line": 5
+          },
+          {
+            "method": "flavorGreeting",
+            "source": "app/src/demo/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+            "line": 5
+          },
+          {
+            "method": "onCreate",
+            "source": "app/src/main/kotlin/dev/openide/sample/MainActivity.kt",
+            "line": 16
+          }
+        ]
+      },
+      "beforeGreetingMarkersAtPause": 1,
+      "completionMarkersAtPause": 0,
+      "samePidAfterContinue": "greeting=Demo: Hello from Java! / Hello from Kotlin!",
+      "sessionForwardReleased": true
+    },
+    {
+      "variant": "fullDebug",
+      "applicationId": "dev.openide.sample.full",
+      "pid": 402,
+      "breakpoint": {
+        "source": "libraries/contracts/src/main/kotlin/dev/openide/sample/contract/KotlinGreeting.kt",
+        "line": 5,
+        "reason": "breakpoint",
+        "displayedBreakpointHits": 1,
+        "applicationFrames": [
+          {
+            "method": "message",
+            "source": "libraries/contracts/src/main/kotlin/dev/openide/sample/contract/KotlinGreeting.kt",
+            "line": 5
+          },
+          {
+            "method": "kotlinMessage",
+            "source": "app/src/full/java/dev/openide/sample/contract/JavaCaller.java",
+            "line": 6
+          },
+          {
+            "method": "flavorGreeting",
+            "source": "app/src/full/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+            "line": 5
+          },
+          {
+            "method": "onCreate",
+            "source": "app/src/main/kotlin/dev/openide/sample/MainActivity.kt",
+            "line": 16
+          }
+        ]
+      },
+      "beforeGreetingMarkersAtPause": 1,
+      "completionMarkersAtPause": 0,
+      "samePidAfterContinue": "greeting=Full: Hello from Java! / Hello from Kotlin!",
+      "sessionForwardReleased": true,
+      "stepOver": {
+        "source": "libraries/contracts/src/main/kotlin/dev/openide/sample/contract/KotlinGreeting.kt",
+        "line": 6,
+        "reason": "step",
+        "displayedBreakpointHits": 1,
+        "applicationFrames": [
+          {
+            "method": "message",
+            "source": "libraries/contracts/src/main/kotlin/dev/openide/sample/contract/KotlinGreeting.kt",
+            "line": 6
+          },
+          {
+            "method": "kotlinMessage",
+            "source": "app/src/full/java/dev/openide/sample/contract/JavaCaller.java",
+            "line": 6
+          },
+          {
+            "method": "flavorGreeting",
+            "source": "app/src/full/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+            "line": 5
+          },
+          {
+            "method": "onCreate",
+            "source": "app/src/main/kotlin/dev/openide/sample/MainActivity.kt",
+            "line": 16
+          }
+        ],
+        "visibleLocal": "greeting={java.lang.String}\"Hello from Kotlin\""
+      }
+    }
+  ],
+  "resolvedDuringAcceptance": [
+    "On this Pixel, adb jdwp prints the active process IDs and keeps listening. Waiting for it to exit timed out; the final implementation reads the target PID line and closes only its own tracker.",
+    "The tested adapter sent two stopped notifications for the same thread before any resume. OpenAndroidStudio now refreshes frames for every notification and counts one breakpoint hit for that thread during one pause. Both final cases showed one hit."
+  ]
+}

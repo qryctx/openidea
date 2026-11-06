@@ -13,3 +13,9 @@ Debug 需要可调试的单一 APK、可用的 JDK，以及支持 `am start --su
 ```sh
 ANDROID_SERIAL=<设备序列号> node android-support/verify-desktop.mjs /tmp/openandroidstudio-debug --device-debug
 ```
+
+在同一台 Pixel 6 上，`demoDebug` 首次进入 Java 的 `message()` 就停在第 5 行。切到 `fullDebug` 后的调用栈从 `KotlinGreeting.message()` 回到 `app/src/full` 的 `JavaCaller.kotlinMessage()`、`flavorGreeting()` 和 `MainActivity.onCreate()`。单步从第 5 行移到第 6 行，两次暂停都只计一次命中。[逐项验收记录](validation/android-device-debug.json)
+
+签名 macOS 应用也通过同一轮验收。首次通过 IDE 提示安装了 Kotlin Debug Adapter 0.4.4，之后两次直接点 Debug。Demo 的 PID 为 3693，Full 的 PID 为 4087。每个进程暂停期间各有一条调用前日志，点 Resume 后才出现页面完成日志，Stop 后两次对应转发都已释放。应用本机占用 138.45 MiB，比前一版增加 144 KiB。调试适配器另占 9.41 MiB。
+
+本机首次恢复已有窗口时，工程信任弹窗出现在另一窗口后方，可用 macOS 的 Window → Bring All to Front 显示。安装适配器后，通知面板可能还保留第一次尝试的失败通知，当前会话状态见工具栏与 Debug 面板。
