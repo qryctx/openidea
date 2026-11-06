@@ -15,6 +15,7 @@ import {
   reportError,
   type CaretContext,
 } from "./ipc";
+import { selectedAndroidUsages } from "./androidVariants";
 import { syntaxUsages } from "./syntaxUsages";
 
 export interface Usage {
@@ -187,6 +188,11 @@ interface FetchedUsages {
 export async function fetchUsages(c: CaretContext, request: RequestId = nextRequestId()): Promise<FetchedUsages> {
   // Usage lines are read afresh: so are the files their syntax colours come from.
   clearLineTokens();
+  const android = await selectedAndroidUsages(c);
+  if (android) {
+    const files = await readManyFileLines(android.locations.map((l) => l.path));
+    return { groups: groupUsages(android.locations, files), note: android.note };
+  }
   let locs: Location[];
   let classified: ClassifiedReference[] = [];
   let note: string | null = null;

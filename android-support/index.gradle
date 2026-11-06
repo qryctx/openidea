@@ -1,0 +1,139 @@
+// Init script for a single, explicitly selected Android variant (AGP 9.3.1).
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+import java.security.MessageDigest
+import groovy.xml.XmlSlurper
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+
+def options = gradle.startParameter.projectProperties
+def variant = options.openAndroidVariant
+if (!(variant ==~ /[A-Za-z][A-Za-z0-9]*/)) throw new GradleException("Supply -PopenAndroidVariant=<variant>")
+def jar = new File(options.openAndroidSupportDir ?: "", "build/libs/android-reference-index.jar")
+def reports = []
+def issueId = "OpenAndroidClassIndex"
+def cap = variant.capitalize()
+
+gradle.rootProject { root ->
+    def parent = root.projectDir.toPath().toRealPath()
+    ["build", "openandroidstudio", "variants"].each { component ->
+        parent = parent.resolve(component)
+        if (Files.isSymbolicLink(parent)) throw new GradleException("Refusing to follow a symbolic link for the Android index directory: $parent")
+    }
+    def target = parent.resolve("${variant}.json").toFile()
+    if (Files.isSymbolicLink(target.toPath())) throw new GradleException("Refusing to follow a symbolic link for the Android index: $target")
+    if (gradle.startParameter.taskNames.any { it in ["openAndroidIndex", ":openAndroidIndex"] }) {
+        if (target.exists()) {
+            def previous = new JsonSlurper().parse(target)
+            if (previous.schema != 1 || previous.variant != variant || !(previous.files instanceof Map)) {
+                throw new GradleException("Refusing to overwrite an unrelated file at $target")
+            }
+            Files.delete(target.toPath())
+        }
+    }
+    if (!jar.isFile()) throw new GradleException("Build the Android reference detector first (see android-support/README.md)")
+    def index = root.tasks.register("openAndroidIndex") {
+        group = "IDE"
+        description = "Index constructor calls resolved by Android lint for the selected variant"
+        doLast {
+            if (reports.empty) throw new GradleException("No Android application exposes variant '$variant'")
+            if (reports.size() > 1) throw new GradleException("Multiple applications expose '$variant'; select one with -PopenAndroidApplication=:module")
+            def rootPath = root.projectDir.toPath().toRealPath()
+            def declarations = [], references = [], files = [:], incompleteMethodNames = new TreeSet<String>()
+            reports.each { report ->
+                if (!report.isFile()) throw new GradleException("Expected lint XML report $report")
+                def issues = new XmlSlurper().parse(report).issue
+                def errors = issues.findAll { it.@severity.text() in ["Error", "Fatal"] }
+                if (errors.size() > 0) throw new GradleException("Lint analysis failed: " + errors.collect { it.@message.text() }.join("; "))
+                issues.findAll { it.@id.text() == issueId }.each { issue ->
+                    def location = issue.location.first()
+                    def file = new File(location.@file.text())
+                    if (!file.absolute || !file.isFile()) throw new GradleException("Missing absolute source location in $report: $file")
+                    def source = file.toPath().toRealPath()
+                    if (!source.startsWith(rootPath)) throw new GradleException("Android index supports project-local sources only: $source")
+                    String path = rootPath.relativize(source).toString().replace(File.separator, "/")
+                    def fields = issue.@message.text().split(/\|/, -1)
+                    if (fields.size() != 6) throw new GradleException("Invalid reference record in $report")
+                    def (kind, symbol, sl, sc, el, ec) = fields
+                    if (kind == "source") {
+                        if (!(symbol ==~ /[a-f0-9]{64}/)) throw new GradleException("Missing source fingerprint for $path")
+                        files[path] = symbol
+                        return
+                    }
+                    if (kind == "incomplete-method") { incompleteMethodNames.add(symbol); return }
+                    if (kind == "unresolved") throw new GradleException("Unresolved constructor at $path:${sl.toInteger() + 1}")
+                    def range = [start: [line: sl.toInteger(), character: sc.toInteger()],
+                                 end: [line: el.toInteger(), character: ec.toInteger()]]
+                    def row = [symbol: symbol, path: path, range: range]
+                    if (kind == "decl") declarations << row
+                    else if (kind == "use") references << row
+                    else throw new GradleException("Unknown Android reference record '$kind'")
+                }
+            }
+            if (!files) throw new GradleException("No source files indexed. Check lint configuration, variant and tool versions.")
+            files.each { path, digest ->
+                def text = Files.readString(rootPath.resolve(path)).replace("\r\n", "\n").replace("\r", "\n")
+                if (text.startsWith("\uFEFF")) text = text.substring(1)
+                def actual = MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)).encodeHex().toString()
+                if (digest != actual) throw new GradleException("Source changed during indexing: $path; retry")
+            }
+            (references + declarations).each { row ->
+                if (!files.containsKey(row.path)) throw new GradleException("Missing indexed source: ${row.path}")
+            }
+            def order = { r -> [r.path, r.range.start.line.toString().padLeft(10, '0'), r.range.start.character.toString().padLeft(10, '0'), r.symbol].join('|') }
+            if (incompleteMethodNames) {
+                logger.warn("Unresolved explicit calls: method queries unavailable for {}", incompleteMethodNames)
+                def incomplete = { row ->
+                    def pos = row.symbol.indexOf('#')
+                    pos >= 0 && incompleteMethodNames.contains(row.symbol.substring(pos + 1, row.symbol.indexOf('(', pos)))
+                }
+                declarations.removeAll(incomplete)
+                references.removeAll(incomplete)
+            }
+            def data = [schema: 1, variant: variant, files: new TreeMap(files), incompleteMethodNames: incompleteMethodNames,
+                        declarations: declarations.unique().sort { order(it) }, references: references.unique().sort { order(it) }]
+            target.parentFile.mkdirs()
+            def temp = Files.createTempFile(target.parentFile.toPath(), ".android-index-", ".tmp")
+            try {
+                temp.toFile().setText(JsonOutput.prettyPrint(JsonOutput.toJson(data)) + "\n", "UTF-8")
+                Files.move(temp, target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+            } finally { Files.deleteIfExists(temp) }
+            logger.lifecycle("Indexed {} files for {} -> {}", files.size(), variant, target)
+        }
+    }
+
+    root.allprojects { p ->
+        ["com.android.application", "com.android.library"].each { plugin ->
+            p.pluginManager.withPlugin(plugin) {
+                p.dependencies.add("lintChecks", p.files(jar))
+                p.extensions.androidComponents.finalizeDsl { android ->
+                    def lint = android.lint
+                    lint.checkOnly.clear()
+                    lint.checkOnly.add(issueId)
+                    lint.disable.remove(issueId)
+                    lint.enable.add(issueId)
+                    lint.ignoreTestSources = true
+                    lint.ignoreTestFixturesSources = true
+                    lint.checkDependencies = true
+                    lint.absolutePaths = true
+                    lint.xmlReport = true
+                    lint.htmlReport = false
+                    lint.textReport = false
+                    lint.sarifReport = false
+                    lint.abortOnError = false
+                    if (lint.baseline != null) throw new GradleException("Reference indexing currently requires a lint configuration without a baseline")
+                    lint.xmlOutput = new File(p.layout.buildDirectory.get().asFile, "openandroidstudio/lint/${variant}.xml")
+                }
+                if (plugin == "com.android.application" && (!options.openAndroidApplication || p.path == options.openAndroidApplication)) {
+                    p.extensions.androidComponents.onVariants(p.extensions.androidComponents.selector().withName(variant), { v ->
+                        if (v.name == variant) {
+                            reports << new File(p.layout.buildDirectory.get().asFile, "openandroidstudio/lint/${variant}.xml")
+                            index.configure { dependsOn(p.path == ":" ? ":lint${cap}" : "${p.path}:lint${cap}") }
+                        }
+                    } as org.gradle.api.Action)
+                }
+            }
+        }
+    }
+}

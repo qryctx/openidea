@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if (( $# < 2 )); then
+    echo "Usage: $0 <Android Gradle project> <variant> [<variant> ...]" >&2
+    exit 2
+fi
+support=$(cd "$(dirname "$0")" && pwd -P)
+project=$(cd "$1" && pwd -P)
+shift
+wrapper="$project/gradlew"
+"$wrapper" -p "$support" --console=plain --no-configuration-cache jar
+for variant in "$@"; do
+    "$wrapper" -p "$project" --console=plain --no-configuration-cache \
+        --init-script "$support/index.gradle" "-PopenAndroidSupportDir=$support" \
+        "-PopenAndroidVariant=$variant" openAndroidIndex
+done

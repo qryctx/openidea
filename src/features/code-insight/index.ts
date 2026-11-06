@@ -18,6 +18,9 @@ import { installServerEvents } from "./servers";
 import { ServerStatus } from "./ServerStatus";
 import { installWorkspaceEditUndo } from "./workspaceUndo";
 
+import { AndroidVariantStatus } from "./AndroidVariantStatus";
+import { discoverAndroidVariants, selectAndroidVariant, useAndroidVariants } from "./androidVariants";
+
 const EDITOR_WHEN = "textEditorActive && (editorFocus || popupOpen || !toolWindowFocus)";
 
 function useErrorBadge(): number | null {
@@ -31,10 +34,15 @@ function useErrorBadge(): number | null {
 
 export function activate(): () => void {
   let root = useProject.getState().project?.root ?? null;
+  void discoverAndroidVariants(root);
+  const unsubVariant = useAndroidVariants.subscribe((s, prev) => {
+    if (s.selected !== prev.selected) resetUsages();
+  });
   const unsubProject = useProject.subscribe((s) => {
     const r = s.project?.root ?? null;
     if (r !== root) {
       root = r;
+      void discoverAndroidVariants(r);
       clearProblems();
       resetUsages();
       resetHierarchy();
@@ -42,6 +50,10 @@ export function activate(): () => void {
   });
   const disposers = [
     unsubProject,
+    unsubVariant,
+    () => {
+      void discoverAndroidVariants(null);
+    },
     installProblemsEvents(),
     installProblemDecorations(),
     installServerEvents(),
@@ -86,8 +98,30 @@ export function activate(): () => void {
       component: ServerStatus,
       title: "Language Services",
     }),
+    registerStatusItem({
+      id: "android.referenceVariant",
+      align: "right",
+      priority: 6,
+      component: AndroidVariantStatus,
+      title: "Android reference variant",
+    }),
     registerOverlay({ id: "code-insight.usagesPopup", component: UsagesPopup }),
     registerActions([
+      {
+        id: "android.selectVariant",
+        title: "Select Android reference variant",
+        hidden: true,
+        run: ({ arg }) => selectAndroidVariant(arg),
+      },
+      {
+        id: "android.refreshVariants",
+        title: "Reload Android reference variants",
+        when: "projectOpen",
+        run: () => {
+          resetUsages();
+          return discoverAndroidVariants(root);
+        },
+      },
       { id: "find.usages", title: "Find Usages", category: "Find", when: EDITOR_WHEN, run: () => findUsages() },
       {
         id: "find.showUsages",

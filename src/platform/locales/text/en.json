@@ -4,5 +4,16 @@
   "WSL distribution:": "WSL distribution:",
   "WSL distribution": "WSL distribution",
   "Project runs on {label}": "Project runs on {label}",
-  "Forwarding ports is not supported in a WSL project yet": "Forwarding ports is not supported in a WSL project yet"
+  "Forwarding ports is not supported in a WSL project yet": "Forwarding ports is not supported in a WSL project yet",
+  "Android reference variant": "Android reference variant",
+  "Default language service": "Default language service",
+  "Select Android reference variant": "Select Android reference variant",
+  "Reload Android reference variants": "Reload Android reference variants",
+  "Android method calls · {variant}": "Android method calls · {variant}",
+  "Android constructor usages · {variant}": "Android constructor usages · {variant}",
+  "Android lint could not resolve all calls with this method name. Use the default language service.": "Android lint could not resolve all calls with this method name. Use the default language service.",
+  "Android index unavailable. Regenerate the variant index.": "Android index unavailable. Regenerate the variant index.",
+  "Invalid Android index. Regenerate the variant index.": "Invalid Android index. Regenerate the variant index.",
+  "Android sources changed. Save and regenerate the variant index.": "Android sources changed. Save and regenerate the variant index.",
+  "No indexed class or method at the caret. Use the default language service for other symbols.": "No indexed class or method at the caret. Use the default language service for other symbols."
 }

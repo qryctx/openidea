@@ -1,3 +1,7 @@
+# OpenAndroidStudio · Android variant references pilot
+
+This is an independent Android-focused fork of [OpenIDEA](https://github.com/l0ng-ai/openidea) based on `v0.1.37`. On this branch, select a generated Android variant in the status bar, then run **Find Usages** on a Java or Kotlin class or ordinary member method to see its resolved calls in the selected variant. Start with the [two-module sample](examples/android-variants/README.md), the [index generator](android-support/README.md) and the [verification record](docs/android-variant-pilot.md). The upstream downloads below do not contain this pilot.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="src-tauri/icons/source/openidea-wordmark-dark.svg">

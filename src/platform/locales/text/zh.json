@@ -6242,5 +6242,16 @@
   "Connect a device over USB, or start an emulator. Logcat uses the Android SDK's adb.": "通过 USB 连接设备，或启动模拟器。Logcat 使用 Android SDK 的 adb。",
   "No lines match the filter": "没有符合过滤条件的日志行",
   "Streaming": "正在接收",
-  "Idle": "空闲"
+  "Idle": "空闲",
+  "Android reference variant": "Android 引用变体",
+  "Default language service": "默认语言服务",
+  "Select Android reference variant": "选择 Android 引用变体",
+  "Reload Android reference variants": "重新加载 Android 引用变体",
+  "Android method calls · {variant}": "Android 方法调用 · {variant}",
+  "Android constructor usages · {variant}": "Android 构造调用 · {variant}",
+  "Android lint could not resolve all calls with this method name. Use the default language service.": "Android lint 未能解析此方法名的所有调用。请使用默认语言服务。",
+  "Android index unavailable. Regenerate the variant index.": "找不到 Android 索引。请重新生成变体索引。",
+  "Invalid Android index. Regenerate the variant index.": "Android 索引无效。请重新生成变体索引。",
+  "Android sources changed. Save and regenerate the variant index.": "Android 源文件有改动。请保存并重新生成变体索引。",
+  "No indexed class or method at the caret. Use the default language service for other symbols.": "光标处没有已索引的类或方法。其他符号请使用默认语言服务。"
 }

@@ -1,0 +1,190 @@
+{
+  "declarations": {
+    "JavaGreeting": {
+      "uri": "libraries/contracts/src/main/java/dev/openide/sample/contract/JavaGreeting.java",
+      "range": {
+        "start": {
+          "line": 2,
+          "character": 19
+        },
+        "end": {
+          "line": 2,
+          "character": 31
+        }
+      }
+    },
+    "KotlinGreeting": {
+      "uri": "libraries/contracts/src/main/kotlin/dev/openide/sample/contract/KotlinGreeting.kt",
+      "range": {
+        "start": {
+          "line": 2,
+          "character": 6
+        },
+        "end": {
+          "line": 2,
+          "character": 20
+        }
+      }
+    }
+  },
+  "variants": {
+    "demoDebug": {
+      "JavaGreeting": [
+        {
+          "uri": "app/src/demo/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+          "range": {
+            "start": {
+              "line": 3,
+              "character": 19
+            },
+            "end": {
+              "line": 3,
+              "character": 31
+            }
+          }
+        }
+      ],
+      "KotlinGreeting": [
+        {
+          "uri": "app/src/demo/java/dev/openide/sample/contract/JavaCaller.java",
+          "range": {
+            "start": {
+              "line": 4,
+              "character": 27
+            },
+            "end": {
+              "line": 4,
+              "character": 41
+            }
+          }
+        }
+      ]
+    },
+    "fullDebug": {
+      "JavaGreeting": [
+        {
+          "uri": "app/src/full/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+          "range": {
+            "start": {
+              "line": 3,
+              "character": 19
+            },
+            "end": {
+              "line": 3,
+              "character": 31
+            }
+          }
+        }
+      ],
+      "KotlinGreeting": [
+        {
+          "uri": "app/src/full/java/dev/openide/sample/contract/JavaCaller.java",
+          "range": {
+            "start": {
+              "line": 4,
+              "character": 27
+            },
+            "end": {
+              "line": 4,
+              "character": 41
+            }
+          }
+        }
+      ]
+    }
+  },
+  "memberDeclarations": {
+    "dev.openide.sample.contract.JavaGreeting#message()": {
+      "uri": "libraries/contracts/src/main/java/dev/openide/sample/contract/JavaGreeting.java",
+      "range": {
+        "start": {
+          "line": 3,
+          "character": 18
+        },
+        "end": {
+          "line": 3,
+          "character": 25
+        }
+      }
+    },
+    "dev.openide.sample.contract.KotlinGreeting#message()": {
+      "uri": "libraries/contracts/src/main/kotlin/dev/openide/sample/contract/KotlinGreeting.kt",
+      "range": {
+        "start": {
+          "line": 3,
+          "character": 8
+        },
+        "end": {
+          "line": 3,
+          "character": 15
+        }
+      }
+    }
+  },
+  "memberVariants": {
+    "demoDebug": {
+      "dev.openide.sample.contract.JavaGreeting#message()": [
+        {
+          "uri": "app/src/demo/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+          "range": {
+            "start": {
+              "line": 4,
+              "character": 31
+            },
+            "end": {
+              "line": 4,
+              "character": 38
+            }
+          }
+        }
+      ],
+      "dev.openide.sample.contract.KotlinGreeting#message()": [
+        {
+          "uri": "app/src/demo/java/dev/openide/sample/contract/JavaCaller.java",
+          "range": {
+            "start": {
+              "line": 5,
+              "character": 24
+            },
+            "end": {
+              "line": 5,
+              "character": 31
+            }
+          }
+        }
+      ]
+    },
+    "fullDebug": {
+      "dev.openide.sample.contract.JavaGreeting#message()": [
+        {
+          "uri": "app/src/full/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+          "range": {
+            "start": {
+              "line": 4,
+              "character": 31
+            },
+            "end": {
+              "line": 4,
+              "character": 38
+            }
+          }
+        }
+      ],
+      "dev.openide.sample.contract.KotlinGreeting#message()": [
+        {
+          "uri": "app/src/full/java/dev/openide/sample/contract/JavaCaller.java",
+          "range": {
+            "start": {
+              "line": 5,
+              "character": 24
+            },
+            "end": {
+              "line": 5,
+              "character": 31
+            }
+          }
+        }
+      ]
+    }
+  }
+}
