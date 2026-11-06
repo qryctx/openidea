@@ -1,0 +1,31 @@
+src/features/code-insight/androidVariants.ts
+  s_f2a417d53e68e4::t_7e78d181023744 140-142
+  s_f2a417d53e68e4::t_54360c5391df57 144,149
+  s_f2a417d53e68e4::t_2695b5ca87aa69 133-138,143
+  s_f2a417d53e68e4::t_ab94ecc739ab6f 123,125-127,139,170
+  s_f2a417d53e68e4::t_b8e93135746a7f 122,124,128-132,169,171-173,190
+  s_f2a417d53e68e4::t_2f98877cf7740e 191-194
+src/features/code-insight/androidVariants.test.ts
+  s_f2a417d53e68e4::t_f22d43ce315299 214-226
+  s_f2a417d53e68e4::t_e290387fdc469a 42,59,85,144,150
+  s_f2a417d53e68e4::t_54360c5391df57 227-234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "e28770ef76a820d16e50b50ef41e9055fbf5c28c",
+  "prompts": {},
+  "logical_commit_id": "e28770ef76a820d16e50b50ef41e9055fbf5c28c",
+  "sessions": {
+    "s_f2a417d53e68e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af46-6aed-76d3-a86d-eb319c695285",
+        "model": "gpt-6.1-terra"
+      },
+      "human_author": "qryctx <48385019+qryctx@users.noreply.github.com>",
+      "total_additions": 2180,
+      "total_deletions": 347
+    }
+  }
+}
