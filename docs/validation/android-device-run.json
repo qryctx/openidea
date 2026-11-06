@@ -93,5 +93,76 @@
         }
       ]
     }
-  ]
+  ],
+  "signedRelease": {
+    "sourceCommit": "db1893da5480e0b0d6e8ae949f8c838fa6a50a2d",
+    "edition": "OpenAndroidStudio for macOS arm64, locally ad-hoc signed production build",
+    "sameWindowAndPhone": true,
+    "developmentServer": false,
+    "signedExecutableSHA256": "b063759f83879b3a3ee2fc73aa8431d820fdd88c2c63b53b1e9a2f53c9dd5465",
+    "bundleAllocatedKiB": 141628,
+    "priorSyncBundleAllocatedKiB": 141528,
+    "embeddedSourceMaps": 0,
+    "archivedSourceMaps": 337,
+    "cleanFixtureTrusted": true,
+    "trigger": "Green Run toolbar button in the signed application",
+    "switchBeforeSecondRun": {
+      "selectedFull": true,
+      "demoScopePresent": false,
+      "demoRowPresent": false,
+      "allProcessesStream": false,
+      "idle": true
+    },
+    "cases": [
+      {
+        "variant": "demoDebug",
+        "applicationId": "dev.openide.sample.demo",
+        "foregroundVerified": true,
+        "pid": 29072,
+        "phonePageLines": ["demoDebug", "dev.openide.sample.demo", "Demo: Hello from Java! / Hello from Kotlin!"],
+        "visibleDesktopAndPhoneLogcat": "launch variant=demoDebug package=dev.openide.sample.demo greeting=Demo: Hello from Java! / Hello from Kotlin!",
+        "desktopAndDevicePidMatched": true,
+        "installedUpdatedAtLocal": "2026-11-06 17:28:20",
+        "localApkSHA256": "24b1bf0186d7f4ba4b953364cb497278a4d3677ad1d51296362cffaee00ed389",
+        "installedApkSHA256": "24b1bf0186d7f4ba4b953364cb497278a4d3677ad1d51296362cffaee00ed389",
+        "installedApkBytes": 879264
+      },
+      {
+        "variant": "fullDebug",
+        "applicationId": "dev.openide.sample.full",
+        "foregroundVerified": true,
+        "pid": 29396,
+        "phonePageLines": ["fullDebug", "dev.openide.sample.full", "Full: Hello from Java! / Hello from Kotlin!"],
+        "visibleDesktopAndPhoneLogcat": "launch variant=fullDebug package=dev.openide.sample.full greeting=Full: Hello from Java! / Hello from Kotlin!",
+        "desktopAndDevicePidMatched": true,
+        "installedUpdatedAtLocal": "2026-11-06 17:29:30",
+        "localApkSHA256": "d15618e6570f01ef4ec907116a228ad1a0df02e5112607ccbe74022f3050fbd5",
+        "installedApkSHA256": "d15618e6570f01ef4ec907116a228ad1a0df02e5112607ccbe74022f3050fbd5",
+        "installedApkBytes": 879264
+      }
+    ]
+  },
+  "regression": {
+    "nativeDesktopFindUsages": {
+      "order": ["demoDebug", "fullDebug", "demoDebug"],
+      "passed": 12
+    },
+    "webUnitTests": {
+      "passed": 6601,
+      "skipped": 6
+    },
+    "browserE2E": {
+      "passed": 138
+    },
+    "rustWorkspace": {
+      "format": "passed",
+      "clippyAllTargets": "passed",
+      "testsWithJbr": {
+        "passed": 2358,
+        "ignored": 51,
+        "failed": 1
+      },
+      "failure": "ide-vcs restricted_reads_ignore_executable_repository_configuration failed twice in the full workspace suite and passed in isolation; ide-vcs and ide-core sources match upstream v0.1.37."
+    }
+  }
 }

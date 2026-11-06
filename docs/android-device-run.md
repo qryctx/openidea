@@ -14,7 +14,9 @@
 
 手机页面前两行分别显示实际变体和运行时包名。第三行由应用的 flavor 源码调用 `:contract` 中的 Java 和 Kotlin 实现生成。两次启动日志都采用 `launch variant=<变体> package=<包名> greeting=<页面第三行>`，tag 为 `OpenAndroidStudioRun`。
 
-2026-11-06 在同一台 USB Pixel 6（Android 17，API 37）上实测。两次 Run 都从桌面按钮触发，在手机上核对了前台 Activity、页面三行文字和进程日志，并逐个比对了本机 APK 和已安装 APK 的 SHA-256。[逐项验收记录](validation/android-device-run.json)
+2026-11-06 在同一台 USB Pixel 6（Android 17，API 37）上完成三轮 demo → full。前两轮分别验证开发版的首次安装和覆盖安装。最后从 macOS 签名发行包的绿色 Run 按钮启动，Demo 的 PID 为 29072，Full 的 PID 为 29396。选中 Full、尚未点击 Run 时，Demo 日志和 PID 已清空。两次均独立核对了手机前台包、三行页面文字、IDE 与手机的启动日志，以及本机与已安装 APK 的 SHA-256。[逐项验收记录](validation/android-device-run.json)
+
+签名应用在本机占用 138.31 MiB，比上一版工程同步包增加 100 KiB。包内有零份 source map，337 份匹配映射单独归档。两份示例 APK 均为 879,264 字节。
 
 ## 复验
 
