@@ -2,10 +2,6 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "OpenAndroidStudio Pilot",
   "identifier": "io.github.qryctx.openandroidstudio.pilot",
-  "build": {
-    "beforeBuildCommand": "pnpm build:android",
-    "frontendDist": "../target/android-frontend/web"
-  },
   "bundle": {
     "createUpdaterArtifacts": false,
     "resources": {

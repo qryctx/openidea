@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "OpenAndroidStudio",
+  "identifier": "io.github.qryctx.openandroidstudio",
+  "build": {
+    "beforeBuildCommand": "pnpm build:android",
+    "frontendDist": "../target/android-frontend/web"
+  },
+  "bundle": {
+    "createUpdaterArtifacts": false,
+    "resources": {
+      "../LICENSE": "licenses/LICENSE",
+      "../NOTICE": "licenses/NOTICE",
+      "../THIRD_PARTY_LICENSES.md": "licenses/THIRD_PARTY_LICENSES.md",
+      "../java/lombok/LICENSE": "licenses/java/lombok/LICENSE",
+      "../java/lombok/README.md": "licenses/java/lombok/README.md"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": []
+    }
+  }
+}

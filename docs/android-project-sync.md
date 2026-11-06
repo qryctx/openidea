@@ -15,7 +15,7 @@ pnpm install --frozen-lockfile
 pnpm package:android:mac
 ```
 
-产物在 `target/release/bundle/macos/OpenAndroidStudio Pilot.app`。打包脚本会做本地 ad-hoc 签名并验证。Android 专用构建先生成带匹配 source map 的前端资产，将映射另存在 `target/android-frontend/sourcemaps`，Tauri 只嵌入同级的 `web` 目录。可以按构建提交归档诊断文件，用于还原对应版本的前端堆栈。通用前端构建仍使用原有配置。
+产物在 `target/release/bundle/macos/OpenAndroidStudio.app`。Android 发行版使用独立应用标识 `io.github.qryctx.openandroidstudio`，可以和上一版 Pilot 同时运行。打包脚本会做本地 ad-hoc 签名并验证。Android 专用构建先生成带匹配 source map 的前端资产，将映射另存在 `target/android-frontend/sourcemaps`，Tauri 只嵌入同级的 `web` 目录。可以按构建提交归档诊断文件，用于还原对应版本的前端堆栈。通用前端构建仍使用原有配置。
 
 ## 复现桌面验收
 
