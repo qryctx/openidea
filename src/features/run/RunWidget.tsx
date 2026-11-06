@@ -7,13 +7,25 @@ import { shortcutLabel } from "@/platform/keymap";
 import { runExecutors, useRunExecutors, useDebugRunSessions } from "@/workbench/contributions";
 import { configIcon } from "./configs";
 import { useRemoteLabel } from "./remote";
-import { CURRENT_FILE, useRun } from "./store";
+import { ANDROID_VARIANT, CURRENT_FILE, useRun } from "./store";
 import { compoundTargets, selectedTarget } from "./sessionTargets";
 import { isDebugOnly } from "./types";
+import { androidRunTarget, useAndroidVariants } from "@/platform/androidVariants";
+import { AndroidRunWidget } from "./AndroidRunWidget";
 import styles from "./Run.module.css";
 
 /** Title bar: configuration chooser, Run / Debug, and Rerun / Stop while running. */
 export function RunWidget() {
+  const target = androidRunTarget(useAndroidVariants());
+  const android = useRun((s) => s.selectedId === ANDROID_VARIANT);
+  return android && target ? (
+    <AndroidRunWidget module={target.module} variant={target.variant} />
+  ) : (
+    <ConfigurationRunWidget />
+  );
+}
+
+function ConfigurationRunWidget() {
   const tx = useTx();
   const label = useRemoteLabel();
   const configs = useRun((s) => s.configs);

@@ -9,6 +9,9 @@
 
 mod model;
 mod process;
+mod run;
+
+pub use run::{LaunchedApp, ensure_device, install_apk, launch_app};
 
 pub use model::*;
 
@@ -132,12 +135,15 @@ pub fn clear_log(serial: &str, cancel: &CancellationToken) -> IdeResult<()> {
     }
 }
 
-fn command(adb: &Path, serial: &str, tail: Option<u32>) -> Command {
+fn command(adb: &Path, serial: &str, tail: Option<&str>, pid: Option<u32>) -> Command {
     let mut cmd = Command::new(adb);
     cmd.args(["-s", serial, "logcat", "-v", "threadtime"]);
+    if let Some(pid) = pid {
+        cmd.arg(format!("--pid={pid}"));
+    }
     if let Some(lines) = tail {
         // Recent history first, then follow: `-T <count>` is lines, not an exit.
-        cmd.arg("-T").arg(lines.to_string());
+        cmd.arg("-T").arg(lines);
     }
     cmd
 }
@@ -150,13 +156,46 @@ pub fn logcat(
     cancel: &CancellationToken,
     on_batch: &mut dyn FnMut(Vec<LogcatLine>),
 ) -> IdeResult<()> {
+    scoped_logcat(serial, clear, None, None, cancel, on_batch)
+}
+
+/// Read startup logs from the target PID and device timestamp as well as subsequent lines.
+pub fn scoped_logcat(
+    serial: &str,
+    clear: bool,
+    pid: Option<u32>,
+    since: Option<&str>,
+    cancel: &CancellationToken,
+    on_batch: &mut dyn FnMut(Vec<LogcatLine>),
+) -> IdeResult<()> {
     let adb = executable()?;
+    if pid.is_some_and(|p| p == 0 || p > i32::MAX as u32)
+        || since.is_some_and(|s| {
+            let Some((sec, ms)) = s.split_once('.') else {
+                return true;
+            };
+            pid.is_none()
+                || sec.is_empty()
+                || sec.len() > 16
+                || ms.len() != 3
+                || !sec.bytes().chain(ms.bytes()).all(|c| c.is_ascii_digit())
+        })
+    {
+        return Err(IdeError::invalid("Invalid Android Logcat process or start time"));
+    }
     if clear {
+        if pid.is_some() {
+            return Err(IdeError::invalid("Device-wide log clearing is unavailable in a scoped stream"));
+        }
         clear_log(serial, cancel)?;
     }
-    let mut parse = |line: &str| Some(parse_line(line));
+    let tail_count = TAIL_LINES.to_string();
+    let mut parse = |line: &str| {
+        let line = parse_line(line);
+        pid.is_none_or(|pid| i32::try_from(pid).ok() == Some(line.pid)).then_some(line)
+    };
     let (ok, stderr) = match process::stream_batched(
-        command(&adb, serial, Some(TAIL_LINES)),
+        command(&adb, serial, Some(since.unwrap_or(&tail_count)), pid),
         cancel,
         BATCH_IDLE,
         BATCH_MAX,
@@ -176,9 +215,9 @@ pub fn logcat(
     let unsupported = stderr.iter().any(|line| {
         line.contains("Unrecognized option") || line.contains("unknown option") || line.contains("Invalid option")
     });
-    if unsupported {
+    if unsupported && pid.is_none() {
         let (ok, stderr) = match process::stream_batched(
-            command(&adb, serial, None),
+            command(&adb, serial, None, None),
             cancel,
             BATCH_IDLE,
             BATCH_MAX,

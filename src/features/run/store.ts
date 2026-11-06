@@ -56,10 +56,12 @@ import { startedPort } from "./serverPort";
 import { tomcatBrowserUrl } from "./tomcat";
 import { gradleDelegation, gradleTestLaunch } from "./gradleRun";
 import { openUrl } from "./navigate";
+import { androidRunTarget, useAndroidVariants } from "@/platform/androidVariants";
 import { tx } from "@/platform/i18n";
 
 /** The permanent "Current File" pseudo-configuration of the chooser (runs the active file's context). */
 export const CURRENT_FILE = "current-file";
+export const ANDROID_VARIANT = "android-active-variant";
 
 export type SessionStatus = "starting" | "running" | "finished" | "failed";
 
@@ -206,7 +208,9 @@ export async function loadConfigs(): Promise<void> {
     const configs = [...saved, ...temps];
     const stored = useRun.getState().selectedId ?? readSelected(root);
     const selectedId =
-      stored === CURRENT_FILE || configs.some((c) => c.id === stored)
+      stored === CURRENT_FILE ||
+      (stored === ANDROID_VARIANT && androidRunTarget(useAndroidVariants.getState())) ||
+      configs.some((c) => c.id === stored)
         ? stored
         : (defaultSelection(saved)?.id ?? CURRENT_FILE);
     useRun.setState({

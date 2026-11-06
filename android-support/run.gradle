@@ -1,0 +1,65 @@
+// Build only the APK artifact selected by AGP for this application module and variant.
+import groovy.json.JsonOutput
+import java.nio.file.Files
+import org.gradle.api.Action
+
+if (gradle.parent != null) return
+
+def properties = gradle.startParameter.projectProperties
+def module = properties.openAndroidApplication
+def variant = properties.openAndroidVariant
+if (!module || !(variant ==~ /[A-Za-z][A-Za-z0-9_-]*/)) {
+    throw new GradleException("Android Run requires an application module and variant")
+}
+
+gradle.rootProject { root ->
+    def selected = root.findProject(module)
+    if (selected == null || selected.path != module) throw new GradleException("Unknown Android application module: $module")
+    def apk, loader, applicationId, aapt2
+    def task = root.tasks.register("openAndroidRunArtifact") {
+        group = "IDE"
+        description = "Build the selected Android application APK for Run"
+        doLast {
+            if (apk == null) throw new GradleException("No enabled application variant $module / $variant")
+            def built = loader.load(apk.get())
+            if (built == null || built.variantName != variant || built.applicationId != applicationId.get()) {
+                throw new GradleException("APK metadata does not match $module / $variant")
+            }
+            def outputs = built.elements
+            if (outputs.size() != 1 || !outputs.first().filters.empty || outputs.first().outputType.name() != "SINGLE") {
+                throw new GradleException("Android Run supports one unfiltered APK; $module / $variant has split outputs")
+            }
+            def path = new File(outputs.first().outputFile).toPath().toRealPath()
+            def projectRoot = root.projectDir.toPath().toRealPath()
+            if (!Files.isRegularFile(path) || !path.fileName.toString().endsWith(".apk") ||
+                    !path.startsWith(apk.get().asFile.toPath().toRealPath()) || !path.startsWith(projectRoot)) {
+                throw new GradleException("Expected a project-local APK in the selected AGP artifact directory")
+            }
+            def packagedId = selected.providers.exec {
+                commandLine(aapt2.get().executable.get().asFile, "dump", "packagename", path.toString())
+            }.standardOutput.asText.get().trim()
+            if (packagedId != built.applicationId) {
+                throw new GradleException("APK manifest package '$packagedId' differs from the selected application ID '${built.applicationId}'")
+            }
+            println "OPENANDROIDSTUDIO_RUN_ARTIFACT=" + JsonOutput.toJson([module: module, variant: variant,
+                    applicationId: built.applicationId, apk: projectRoot.relativize(path).toString().replace(File.separator, "/")])
+        }
+    }
+    selected.pluginManager.withPlugin("com.android.application") {
+        def plugin = selected.plugins.getPlugin("com.android.application")
+        def artifactType = plugin.class.classLoader.loadClass('com.android.build.api.artifact.SingleArtifact$APK')
+                                      .getField("INSTANCE").get(null)
+        def components = selected.extensions.androidComponents
+        aapt2 = components.sdkComponents.aapt2
+        components.onVariants(components.selector().withName(variant), { model ->
+            if (!selected.extensions.android.dynamicFeatures.empty) {
+                throw new GradleException("Android Run does not yet support applications with dynamic features")
+            }
+            apk = model.artifacts.get(artifactType)
+            loader = model.artifacts.getBuiltArtifactsLoader()
+            applicationId = model.applicationId
+            // The provider carries the package task dependency, including custom APK transforms.
+            task.configure { inputs.dir(apk) }
+        } as Action)
+    }
+}

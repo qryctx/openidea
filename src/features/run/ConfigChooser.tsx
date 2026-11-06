@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { executeAction } from "@/platform/actions";
 import { shortcutLabel } from "@/platform/keymap";
 import { HighlightedText, Icon, IconButton, List, Popup, SearchField, fuzzyMatch, listNavigate, T } from "@/ui";
+import { androidRunTarget, useAndroidVariants } from "@/platform/androidVariants";
 import type { RunConfig } from "@/platform/ipc";
 import { useWorkflowSettings } from "@/platform/workflowSettings";
 import { useDebugRunSessions } from "@/workbench/contributions";
@@ -10,6 +11,7 @@ import { commandLine, configIcon, groupConfigs } from "./configs";
 import { targetName } from "./remote";
 import {
   canDeleteConfig,
+  ANDROID_VARIANT,
   CURRENT_FILE,
   deleteConfig,
   saveTemporary,
@@ -23,6 +25,7 @@ import styles from "./Run.module.css";
 import { tx } from "@/platform/i18n";
 
 type Row =
+  | { type: "android"; key: string; label: string }
   | { type: "section"; key: string; label: string }
   | { type: "config"; key: string; config: RunConfig; indices: number[] | null }
   | { type: "edit"; key: string }
@@ -112,24 +115,29 @@ function ConfigChooser() {
   const sessions = useRun((s) => s.sessions);
   const debugSessions = useDebugRunSessions((s) => s.sessions);
   const [query, setQuery] = useState("");
-  const rows = useMemo(
-    () =>
-      buildRows(
-        configs,
-        query,
-        configs.find((c) => c.id === selectedId),
-        temporary,
-        pinned,
-        recent,
-      ),
-    [configs, query, selectedId, temporary, pinned, recent],
-  );
+  const target = androidRunTarget(useAndroidVariants());
+  const androidLabel = target ? target.module + " · " + target.variant : null;
+  const rows = useMemo(() => {
+    const rows = buildRows(
+      configs,
+      query,
+      configs.find((c) => c.id === selectedId),
+      temporary,
+      pinned,
+      recent,
+    );
+    if (androidLabel && mode !== "debug" && (!query || fuzzyMatch(androidLabel, query)))
+      rows.unshift({ type: "android", key: "android", label: androidLabel });
+    return rows;
+  }, [configs, query, selectedId, temporary, pinned, recent, androidLabel, mode]);
   const isSection = (r: Row) => r.type === "section";
   const initial = Math.max(
     0,
     rows.findIndex(
       (r) =>
-        (r.type === "config" && r.config.id === selectedId) || (r.type === "current" && selectedId === CURRENT_FILE),
+        (r.type === "android" && selectedId === ANDROID_VARIANT) ||
+        (r.type === "config" && r.config.id === selectedId) ||
+        (r.type === "current" && selectedId === CURRENT_FILE),
     ),
   );
   const [active, setActive] = useState(initial);
@@ -168,6 +176,13 @@ function ConfigChooser() {
     }
     if (row.type === "save") {
       void saveTemporary(row.config.id);
+      return;
+    }
+    if (row.type === "android") {
+      if (how !== "debug" && how !== "edit") {
+        useRun.setState({ selectedId: ANDROID_VARIANT });
+        if (how === "run") void executeAction("run.run");
+      }
       return;
     }
     if (row.type === "current") {
@@ -276,6 +291,16 @@ function ConfigChooser() {
                 <span className={clsx(styles.chooserRow, styles.chooserEdit)}>
                   <Icon name="check" size={13} />
                   <span>{tx`Save '${r.config.name}' Configuration`}</span>
+                </span>
+              );
+            }
+            if (r.type === "android") {
+              return (
+                <span className={styles.chooserRow}>
+                  <Icon name="run" size={13} />
+                  <span className={clsx(styles.chooserName, selectedId === ANDROID_VARIANT && styles.chooserSelected)}>
+                    {r.label}
+                  </span>
                 </span>
               );
             }

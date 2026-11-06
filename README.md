@@ -1,6 +1,6 @@
-# OpenAndroidStudio · Android variant references pilot
+# OpenAndroidStudio · Android development edition
 
-This independent Android IDE builds on [OpenIDEA v0.1.37](https://github.com/l0ng-ai/openidea). Open the [two-module Android example](examples/android-variants/README.md), trust the project, select an application variant in the status bar, then use **Find Usages** on a Java or Kotlin class or member method. Gradle discovers variants and prepares the selected index in the IDE. See [Android project sync and release builds](docs/android-project-sync.md) for setup and verification. The upstream downloads below are for OpenIDEA.
+This independent Android IDE builds on [OpenIDEA v0.1.37](https://github.com/l0ng-ai/openidea). Open the [two-module Android example](examples/android-variants/README.md), trust the project, select an application variant in the status bar, then use **Find Usages** on a Java or Kotlin class or member method. Gradle discovers variants and prepares the selected index in the IDE. The green **Run** button builds that same variant, installs it on the selected phone and opens its Logcat. See [physical-device Run](docs/android-device-run.md) and [Android project sync and release builds](docs/android-project-sync.md) for setup and verification. The upstream downloads below are for OpenIDEA.
 
 The [Android edition scope](docs/android-edition-scope.md) records which upstream features to keep, which to make optional, and the measured size of the first candidates.
 

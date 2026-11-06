@@ -23,5 +23,20 @@
   "Android project sync failed": "Android project sync failed",
   "Syncing Android variants…": "Syncing Android variants…",
   "Preparing {variant}…": "Preparing {variant}…",
-  "Refreshing Android references…": "Refreshing Android references…"
+  "Refreshing Android references…": "Refreshing Android references…",
+  "Building…": "Building…",
+  "Installing…": "Installing…",
+  "Launching…": "Launching…",
+  "Launched": "Launched",
+  "Run failed": "Run failed",
+  "Select an online Android device": "Select an online Android device",
+  "Android Run returned a different target": "Android Run returned a different target",
+  "Android Run failed": "Android Run failed",
+  "Select Android device": "Select Android device",
+  "Android deployment device": "Android deployment device",
+  "Cancel Android Run": "Cancel Android Run",
+  "Refresh Android devices": "Refresh Android devices",
+  "Show Android application logs": "Show Android application logs",
+  "Show all processes": "Show all processes",
+  "Detach Android application logs": "Detach Android application logs"
 }

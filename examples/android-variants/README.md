@@ -10,7 +10,7 @@ Install JDK 21 and an Android SDK containing platform 36. Point `JAVA_HOME` and 
 ./gradlew :app:assembleDemoDebug :app:assembleFullDebug
 ```
 
-The APKs appear under `app/build/outputs/apk/demo/debug` and `app/build/outputs/apk/full/debug`. The application IDs end in `.demo` and `.full`. The button exercises both cross-language calls and displays the active edition.
+The APKs appear under `app/build/outputs/apk/demo/debug` and `app/build/outputs/apk/full/debug`. The application IDs end in `.demo` and `.full`. On launch the activity displays the build variant, installed package name and cross-language greeting. A matching `OpenAndroidStudioRun` Logcat entry is emitted by the app process.
 
 ## Check Find Usages
 

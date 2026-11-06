@@ -16,6 +16,7 @@ pub struct AndroidVariant {
 
 const SUPPORT: &[(&str, &[u8])] = &[
     ("discover.gradle", include_bytes!("../../../android-support/discover.gradle")),
+    ("run.gradle", include_bytes!("../../../android-support/run.gradle")),
     ("index.gradle", include_bytes!("../../../android-support/index.gradle")),
     ("settings.gradle.kts", include_bytes!("../../../android-support/settings.gradle.kts")),
     ("build.gradle.kts", include_bytes!("../../../android-support/build.gradle.kts")),
@@ -162,6 +163,56 @@ pub fn discover(
     // One unsupported module or variant must not hide valid siblings in the model.
     variants.retain(|v| check_selection(&v.module, &v.name).is_ok());
     Ok(variants)
+}
+
+/// A single installable APK produced by the selected AGP application variant.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AndroidRunArtifact {
+    pub module: String,
+    pub variant: String,
+    pub application_id: String,
+    pub apk: PathBuf,
+}
+
+pub fn build_run_artifact(
+    root: &Path,
+    cache: &Path,
+    module: &str,
+    variant: &str,
+    env: &BTreeMap<String, String>,
+    cancel: &CancellationToken,
+) -> IdeResult<AndroidRunArtifact> {
+    check_selection(module, variant)?;
+    let support = prepare_support(cache)?;
+    let options = [
+        "--init-script".into(),
+        support.join("run.gradle").to_string_lossy().into_owned(),
+        format!("-PopenAndroidApplication={module}"),
+        format!("-PopenAndroidVariant={variant}"),
+        ":openAndroidRunArtifact".into(),
+    ];
+    let result = run(root, root, &options, env, cancel)?;
+    let mut records = result.lines().filter_map(|line| line.strip_prefix("OPENANDROIDSTUDIO_RUN_ARTIFACT="));
+    let record =
+        records.next().ok_or_else(|| IdeError::unavailable("Gradle did not return an installable Android artifact"))?;
+    if records.next().is_some() {
+        return Err(IdeError::invalid("Gradle returned multiple Android run artifacts"));
+    }
+    let artifact: AndroidRunArtifact =
+        serde_json::from_str(record).map_err(|e| IdeError::invalid(format!("Invalid Android run artifact: {e}")))?;
+    let path = root.join(&artifact.apk);
+    if artifact.module != module
+        || artifact.variant != variant
+        || artifact.apk.is_absolute()
+        || artifact.apk.components().any(|c| !matches!(c, std::path::Component::Normal(_)))
+        || path.extension().and_then(|s| s.to_str()) != Some("apk")
+        || !path.is_file()
+        || dunce::canonicalize(&path)? != path
+    {
+        return Err(IdeError::invalid("Gradle returned an APK outside the selected project or variant"));
+    }
+    Ok(artifact)
 }
 
 pub fn index_variant(

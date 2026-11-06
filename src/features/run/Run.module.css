@@ -827,3 +827,9 @@
   padding: 4px 0 0 8px;
   background: var(--bg-island);
 }
+
+.androidStatus {
+  color: var(--fg-muted);
+  font-size: var(--fs-small);
+  white-space: nowrap;
+}

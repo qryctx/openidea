@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react"
 import clsx from "clsx";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Channel } from "@tauri-apps/api/core";
+import { executeAction } from "@/platform/actions";
 import { call, commands, isCancelled, nextRequestId } from "@/platform/ipc";
 import type { LogcatLevel, LogcatLine } from "@/platform/ipc";
 import { Input, IconButton, Select, T, EmptyState, showContextMenu, type MenuItem } from "@/ui";
@@ -40,6 +41,7 @@ export function LogcatView() {
   const devicesError = useLogcat((s) => s.devicesError);
   const loadingDevices = useLogcat((s) => s.loadingDevices);
   const serial = useLogcat((s) => s.serial);
+  const scope = useLogcat((s) => s.scope);
   const level = useLogcat((s) => s.level);
   const query = useLogcat((s) => s.query);
   const history = useLogcat((s) => s.history);
@@ -93,25 +95,34 @@ export function LogcatView() {
       setStatus("idle");
       return;
     }
-    if (bufferedFor !== serial) {
+    const bufferKey = JSON.stringify([serial, scope]);
+    if (bufferedFor !== bufferKey) {
       clearLines();
-      bufferedFor = serial;
+      bufferedFor = bufferKey;
       written.current = 0;
     }
     const request = nextRequestId();
     const channel = new Channel<LogcatLine[]>();
-    channel.onmessage = (batch) => appendLines(batch);
+    let active = true;
+    const current = () => active && useLogcat.getState().serial === serial && useLogcat.getState().scope === scope;
+    channel.onmessage = (batch) => {
+      if (current()) appendLines(batch);
+    };
     setStatus("running");
-    call(commands.androidLogcat(request, serial, false, channel))
-      .then(() => setStatus("idle"))
+    call(commands.androidLogcat(request, serial, false, scope?.pid ?? null, scope?.logSince ?? null, channel))
+      .then(() => {
+        if (current()) setStatus("idle");
+      })
       .catch((e) => {
+        if (!current()) return;
         if (isCancelled(e)) setStatus("idle");
         else setStatus("error", message(e));
       });
     return () => {
-      void commands.cancelRequest(request);
+      active = false;
+      void commands.cancelRequest(request).catch(() => {});
     };
-  }, [serial]);
+  }, [serial, scope]);
 
   const rows = useMemo(() => filterLines(lines, level, query), [lines, level, query]);
   const filterError = useMemo(() => compileQuery(query).error, [query]);
@@ -149,10 +160,10 @@ export function LogcatView() {
         <Select
           className={styles.device}
           aria-label={"Device"}
-          placeholder="No devices"
+          placeholder={devices.length ? "Select Android device" : "No devices"}
           value={serial}
           options={deviceOptions}
-          onChange={(value) => useLogcat.setState({ serial: value })}
+          onChange={(value) => void executeAction("logcat.watchDevice", value)}
         />
         <Select
           className={styles.level}
@@ -267,6 +278,17 @@ export function LogcatView() {
       )}
 
       <div className={styles.status}>
+        {scope && (
+          <span data-logcat-application={scope.applicationId} data-logcat-pid={scope.pid}>
+            {scope.applicationId} · PID {scope.pid}
+            <IconButton
+              icon="close"
+              size="small"
+              title="Show all processes"
+              onClick={() => void executeAction("logcat.watchDevice")}
+            />
+          </span>
+        )}
         <span>{status === "running" ? <T>Streaming</T> : status === "error" ? <T>Stopped</T> : <T>Idle</T>}</span>
         {paused && <span className={styles.warn}>Paused</span>}
         {filterError && <span className={styles.error}>Filter ignored: {filterError}</span>}

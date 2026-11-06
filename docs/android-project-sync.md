@@ -4,7 +4,7 @@
 
 以 [双模块示例](../examples/android-variants/README.md) 为例，从没有任何生成目录的工程开始。选择 `demoDebug`，在库里的 `KotlinGreeting.message()` 上查引用，结果应为 `app/src/demo/java/…/JavaCaller.java`。切换到 `fullDebug`，结果会变成 `app/src/full/java/…/JavaCaller.java`。同一行的 `message(String)` 调用属于另一个重载。对 Java 声明的查询则返回 app 中的 Kotlin 调用。
 
-工程打开时通过 AGP 枚举已启用的应用变体，选中后才通过项目的 Wrapper 和 lint 生成对应的语义索引。索引按“应用模块＋变体”分目录，两个应用可以各自拥有名为 `demoDebug` 的变体。状态栏显示准备或失败的状态，菜单中提供重新同步入口。仅在受信任的本地工程执行 Gradle。生成索引所需的分析规则由应用提供。当前认证的环境是 macOS arm64、JDK 21、Gradle 9.5.0、AGP 9.3.1、SDK Platform 36。支持范围是构造调用和普通成员方法直接调用。构建与部署仍使用独立的运行配置。
+工程打开时通过 AGP 枚举已启用的应用变体，选中后才通过项目的 Wrapper 和 lint 生成对应的语义索引。索引按“应用模块＋变体”分目录，两个应用可以各自拥有名为 `demoDebug` 的变体。状态栏显示准备或失败的状态，菜单中提供重新同步入口。仅在受信任的本地工程执行 Gradle。生成索引所需的分析规则由应用提供。当前认证的环境是 macOS arm64、JDK 21、Gradle 9.5.0、AGP 9.3.1、SDK Platform 36。支持范围是构造调用和普通成员方法直接调用。工具栏的 Android Run 同样使用这里选中的应用模块和变体。[真机运行与 Logcat](android-device-run.md)
 
 ## 构建
 

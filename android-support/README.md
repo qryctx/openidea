@@ -1,8 +1,25 @@
-# Android variant references
+# Android project companion
 
 Open the Gradle root as a trusted project in the Android edition. The IDE asks AGP which application variants are enabled. Select one in the status bar to prepare its reference index. Discovery uses the project's Gradle Wrapper. It does not run lint or require a prebuilt index.
 
 The tested combination is JDK 21, Gradle Wrapper 9.5.0, AGP 9.3.1, Android SDK Platform 36 and Android lint 32.3.1. On first indexing, the project's wrapper builds the detector in a writable companion cache. Gradle can download lint's compiler and analysis dependencies on first use.
+
+## Physical-device Run artifact
+
+Run builds the selected application variant using AGP's APK artifact provider. It reads the generated artifact metadata to get the application ID and the path of a single unfiltered APK, then checks the package inside that file with AGP's AAPT2. The Android device resolves the installed package's launcher. Projects with split APKs or dynamic features require a different deployment flow.
+
+To reproduce the build step from this repository without a device:
+
+```sh
+examples/android-variants/gradlew -p examples/android-variants --no-configuration-cache --no-configure-on-demand \
+  --init-script "$PWD/android-support/run.gradle" -PopenAndroidApplication=:app \
+  -PopenAndroidVariant=demoDebug :openAndroidRunArtifact
+python3 android-support/tests/run-artifact.py
+```
+
+The check builds both flavors and verifies the IDs inside the APKs with `aapt2`. It also covers an application in a remapped directory with a custom APK name, mismatched APK contents, a disabled variant, a library module, dynamic features and split outputs.
+
+For the full desktop-to-phone test, including package identity, foreground UI and process logs, see [physical-device Run](../docs/android-device-run.md).
 
 ## Reproduce a single application from the command line
 

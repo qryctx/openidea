@@ -37,6 +37,9 @@ fn read_all(mut pipe: impl Read + Send + 'static) -> std::thread::JoinHandle<Str
 /// Runs `cmd` to completion. Fails when it outlives `timeout` or `cancel` fires;
 /// a non-zero exit is reported in [`Output::success`], not as an error.
 pub(crate) fn run(mut cmd: Command, timeout: Duration, cancel: Option<&CancellationToken>) -> IdeResult<Output> {
+    if cancel.is_some_and(CancellationToken::is_cancelled) {
+        return Err(IdeError::cancelled());
+    }
     prepare(&mut cmd);
     let mut child = spawn(&mut cmd)?;
     let out = child.stdout.take().map(read_all);

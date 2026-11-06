@@ -1,0 +1,97 @@
+{
+  "date": "2026-11-06",
+  "fixture": "examples/android-variants",
+  "modules": [":app", ":contract"],
+  "desktop": "macOS arm64, native Tauri development build",
+  "device": {
+    "model": "Pixel 6",
+    "android": "17",
+    "api": 37,
+    "transport": "USB",
+    "sameDeviceForAllRuns": true
+  },
+  "method": "Each pass opened a new copy of the tracked sample files, trusted it and used the toolbar Run button twice in one window. Android package-manager state, foreground component, device log and installed APK bytes were checked independently of IDE state. The phone page was read from the native UI tree and captured in a separate screenshot.",
+  "initialPackages": {
+    "dev.openide.sample.demo": false,
+    "dev.openide.sample.full": false
+  },
+  "passes": [
+    {
+      "installation": "initial installation",
+      "result": "passed",
+      "cases": [
+        {
+          "variant": "demoDebug",
+          "applicationId": "dev.openide.sample.demo",
+          "foregroundActivity": "dev.openide.sample.demo/dev.openide.sample.MainActivity",
+          "pid": 26140,
+          "toolbarStages": ["building", "installing", "launching", "launched"],
+          "runClickedAtUtc": "2026-11-06T08:58:00.451Z",
+          "installedUpdateLocalTime": "2026-11-06 16:58:02",
+          "pageLines": ["demoDebug", "dev.openide.sample.demo", "Demo: Hello from Java! / Hello from Kotlin!"],
+          "phoneScreenshotSize": [1080, 2400],
+          "desktopLogcat": "launch variant=demoDebug package=dev.openide.sample.demo greeting=Demo: Hello from Java! / Hello from Kotlin!",
+          "deviceLogcatMatched": true,
+          "otherFlavorMarkerAbsent": true,
+          "localApkSHA256": "24b1bf0186d7f4ba4b953364cb497278a4d3677ad1d51296362cffaee00ed389",
+          "installedApkSHA256": "24b1bf0186d7f4ba4b953364cb497278a4d3677ad1d51296362cffaee00ed389"
+        },
+        {
+          "variant": "fullDebug",
+          "applicationId": "dev.openide.sample.full",
+          "foregroundActivity": "dev.openide.sample.full/dev.openide.sample.MainActivity",
+          "pid": 26576,
+          "toolbarStages": ["building", "installing", "launching", "launched"],
+          "runClickedAtUtc": "2026-11-06T08:59:42.596Z",
+          "installedUpdateLocalTime": "2026-11-06 16:59:44",
+          "pageLines": ["fullDebug", "dev.openide.sample.full", "Full: Hello from Java! / Hello from Kotlin!"],
+          "phoneScreenshotSize": [1080, 2400],
+          "desktopLogcat": "launch variant=fullDebug package=dev.openide.sample.full greeting=Full: Hello from Java! / Hello from Kotlin!",
+          "deviceLogcatMatched": true,
+          "otherFlavorMarkerAbsent": true,
+          "localApkSHA256": "d15618e6570f01ef4ec907116a228ad1a0df02e5112607ccbe74022f3050fbd5",
+          "installedApkSHA256": "d15618e6570f01ef4ec907116a228ad1a0df02e5112607ccbe74022f3050fbd5"
+        }
+      ]
+    },
+    {
+      "installation": "repeat update installation with immediate Logcat detach on variant switch",
+      "result": "passed",
+      "cases": [
+        {
+          "variant": "demoDebug",
+          "applicationId": "dev.openide.sample.demo",
+          "foregroundActivity": "dev.openide.sample.demo/dev.openide.sample.MainActivity",
+          "pid": 27061,
+          "toolbarStages": ["building", "installing", "launching", "launched"],
+          "runClickedAtUtc": "2026-11-06T09:05:45.978Z",
+          "installedUpdateLocalTime": "2026-11-06 17:05:48",
+          "pageLines": ["demoDebug", "dev.openide.sample.demo", "Demo: Hello from Java! / Hello from Kotlin!"],
+          "phoneScreenshotSize": [1080, 2400],
+          "desktopLogcat": "launch variant=demoDebug package=dev.openide.sample.demo greeting=Demo: Hello from Java! / Hello from Kotlin!",
+          "deviceLogcatMatched": true,
+          "otherFlavorMarkerAbsent": true,
+          "localApkSHA256": "24b1bf0186d7f4ba4b953364cb497278a4d3677ad1d51296362cffaee00ed389",
+          "installedApkSHA256": "24b1bf0186d7f4ba4b953364cb497278a4d3677ad1d51296362cffaee00ed389"
+        },
+        {
+          "variant": "fullDebug",
+          "applicationId": "dev.openide.sample.full",
+          "foregroundActivity": "dev.openide.sample.full/dev.openide.sample.MainActivity",
+          "pid": 27377,
+          "toolbarStages": ["building", "installing", "launching", "launched"],
+          "runClickedAtUtc": "2026-11-06T09:06:35.882Z",
+          "installedUpdateLocalTime": "2026-11-06 17:06:39",
+          "pageLines": ["fullDebug", "dev.openide.sample.full", "Full: Hello from Java! / Hello from Kotlin!"],
+          "phoneScreenshotSize": [1080, 2400],
+          "desktopLogcat": "launch variant=fullDebug package=dev.openide.sample.full greeting=Full: Hello from Java! / Hello from Kotlin!",
+          "deviceLogcatMatched": true,
+          "otherFlavorMarkerAbsent": true,
+          "localApkSHA256": "d15618e6570f01ef4ec907116a228ad1a0df02e5112607ccbe74022f3050fbd5",
+          "installedApkSHA256": "d15618e6570f01ef4ec907116a228ad1a0df02e5112607ccbe74022f3050fbd5",
+          "oldScopeAndRowsGoneBeforeClickingRun": true
+        }
+      ]
+    }
+  ]
+}

@@ -25,7 +25,10 @@ await missing(indexRoot);
 console.log("Opening clean sample", fixture);
 
 const oracle = JSON.parse(await readFile(join(fixture, "expected-usages.json"), "utf8"));
-const out = process.argv[2] ?? (await mkdtemp(join(tmpdir(), "openidea-android-desktop-")));
+const deviceRun = process.argv.includes("--device-run");
+const out =
+  process.argv.slice(2).find((arg) => !arg.startsWith("--")) ??
+  (await mkdtemp(join(tmpdir(), "openidea-android-desktop-")));
 await mkdir(out, { recursive: true });
 
 async function until(read, description, timeout = 30000) {
@@ -358,22 +361,7 @@ async function verifyModelRecovery() {
   return { brokenBuild: "failed", oldResultsCleared: true, repairedBuild: "ready", selected: "demoDebug" };
 }
 
-try {
-  windowLabel = await fixtureWindow();
-  await rpc("set_window_state", { action: "focus", windowId: windowLabel });
-  assert.equal(
-    await js(`const { useProject } = await import("/src/platform/project.ts");
-    return useProject.getState().project?.root;`),
-    fixture,
-  );
-  assert.equal(
-    await js(`const {useProject} = await import("/src/platform/project.ts");
-    return useProject.getState().project.trusted;`),
-    false,
-    "Fresh fixture must start restricted",
-  );
-  await missing(indexRoot);
-  await trustFixture();
+async function verifyReferences() {
   const results = [];
   const switches = [];
   let previous = null;
@@ -433,6 +421,37 @@ try {
     ) + "\n",
   );
   console.log("Verified", results.length, "native Find Usages queries. Evidence:", out);
+}
+
+try {
+  windowLabel = await fixtureWindow();
+  await rpc("set_window_state", { action: "focus", windowId: windowLabel });
+  assert.equal(
+    await js(`const { useProject } = await import("/src/platform/project.ts");
+    return useProject.getState().project?.root;`),
+    fixture,
+  );
+  assert.equal(
+    await js(`const {useProject} = await import("/src/platform/project.ts");
+    return useProject.getState().project.trusted;`),
+    false,
+    "Fresh fixture must start restricted",
+  );
+  await missing(indexRoot);
+  await trustFixture();
+  if (deviceRun) {
+    const { verifyDeviceRun } = await import("./verify-device-run.mjs");
+    await verifyDeviceRun({
+      fixture,
+      out,
+      js,
+      choose,
+      until,
+      capture: () => rpc("capture_native_screenshot", { windowLabel, format: "png" }),
+    });
+  } else {
+    await verifyReferences();
+  }
 } finally {
   socket.close();
 }

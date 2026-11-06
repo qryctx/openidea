@@ -40,6 +40,15 @@ import { openImport } from "./importConfigs";
 import { registerGoActions } from "./goActions";
 import { invalidateGoModules } from "./goModules";
 import { invalidatePythonPackages } from "./pythonPackages";
+import {
+  androidBusy,
+  cancelAndroidRun,
+  useAndroidRun,
+  installAndroidRun,
+  refreshAndroidDevices,
+  runAndroidVariant,
+  selectAndroidDevice,
+} from "./androidRun";
 import { RunWidget } from "./RunWidget";
 import { runConfigsRunAnything } from "./runAnything";
 import { cleanupRemovedProject, recordRun, runServiceProvider } from "./services";
@@ -57,6 +66,7 @@ import { clearRuntimeCache } from "./runtimes";
 import {
   adoptTemporary,
   applyConsoleSettings,
+  ANDROID_VARIANT,
   CURRENT_FILE,
   currentFileSelected,
   prepareLaunch,
@@ -89,6 +99,7 @@ async function ensureConfigs() {
 }
 
 async function runSelected() {
+  if (useRun.getState().selectedId === ANDROID_VARIANT) return runAndroidVariant();
   await ensureConfigs();
   if (currentFileSelected()) return runCurrentFile(false);
   const config = selectedConfig();
@@ -205,6 +216,10 @@ function configFromArg(arg: unknown): RunConfig | undefined {
  * stoppable process, or a list of them with Stop All when there are several.
  */
 function stopAction(arg?: unknown) {
+  if (useRun.getState().selectedId === ANDROID_VARIANT && androidBusy(useAndroidRun.getState().phase)) {
+    cancelAndroidRun();
+    return;
+  }
   const ctx = getContext();
   if (ctx.toolWindowFocus && ctx.activeToolWindow === "debug" && getAction("debug.stop")) {
     void executeAction("debug.stop");
@@ -277,6 +292,7 @@ function scheduleReload() {
 
 export function activate(): () => void {
   const disposers: Array<() => void> = [
+    installAndroidRun(),
     registerToolWindow({
       id: "run",
       title: "Run",
@@ -327,6 +343,21 @@ export function activate(): () => void {
       prepare: prepareMenu,
     }),
     registerActions([
+      {
+        id: "android.refreshRunDevices",
+        title: "Refresh Android devices",
+        hidden: true,
+        category: "Run",
+        run: refreshAndroidDevices,
+      },
+      {
+        id: "android.selectRunDevice",
+        title: "Select Android device",
+        category: "Run",
+        hidden: true,
+        run: ({ arg }) => selectAndroidDevice(arg),
+      },
+      { id: "android.cancelRun", title: "Cancel Android Run", hidden: true, category: "Run", run: cancelAndroidRun },
       {
         id: "run.updateApplication",
         title: "Update Application",

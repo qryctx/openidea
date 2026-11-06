@@ -17,12 +17,20 @@ export interface LogcatRow extends LogcatLine {
   id: number;
 }
 
+export interface RunLogScope {
+  applicationId: string;
+  pid: number;
+  logSince: string;
+}
 interface LogcatState {
   devices: AndroidDevice[];
   devicesError: string | null;
   loadingDevices: boolean;
   /** `adb -s` value of the device being watched. */
   serial: string | null;
+  scope: RunLogScope | null;
+  /** A detached Run must wait for another Run or an explicit device selection. */
+  awaitingSelection: boolean;
   /** Drop lines below this level. */
   level: LogcatLevel;
   /** Filter expression: `tag:`, `message:`, `-term`, … (see `query.ts`). */
@@ -43,6 +51,8 @@ export const useLogcat = create<LogcatState>(() => ({
   devicesError: null,
   loadingDevices: false,
   serial: null,
+  scope: null,
+  awaitingSelection: false,
   level: "verbose",
   query: "",
   history: loadFilters(),
@@ -96,14 +106,14 @@ export function clearLines() {
 
 /** Takes a fresh device list, keeping the watched device while it is still there. */
 export function setDevices(devices: AndroidDevice[]) {
-  const { serial } = useLogcat.getState();
+  const { serial, scope, awaitingSelection } = useLogcat.getState();
   const usable = (d: AndroidDevice) => d.state === "device";
   const keep = serial !== null && devices.some((d) => d.serial === serial && usable(d));
   useLogcat.setState({
     devices,
     devicesError: null,
     loadingDevices: false,
-    serial: keep ? serial : (devices.find(usable)?.serial ?? null),
+    serial: awaitingSelection || scope !== null || keep ? serial : (devices.find(usable)?.serial ?? null),
   });
 }
 
@@ -122,9 +132,46 @@ export function resetLogcat() {
     devicesError: null,
     loadingDevices: false,
     serial: null,
+    scope: null,
+    awaitingSelection: false,
     paused: false,
     status: "idle",
     error: null,
     lines: [],
   });
+}
+
+/** Start a fresh scoped buffer even if both variants use the same device. */
+export function followRunLog(serial: string, scope: RunLogScope) {
+  pending = [];
+  useLogcat.setState({
+    serial,
+    scope,
+    awaitingSelection: false,
+    lines: [],
+    paused: false,
+    follow: true,
+    level: "verbose",
+    query: "",
+    error: null,
+  });
+}
+
+export function detachRunLog() {
+  if (!useLogcat.getState().scope) return;
+  pending = [];
+  useLogcat.setState({
+    serial: null,
+    scope: null,
+    awaitingSelection: true,
+    paused: false,
+    status: "idle",
+    error: null,
+    lines: [],
+  });
+}
+
+export function watchDevice(serial: string | null) {
+  pending = [];
+  useLogcat.setState({ serial, scope: null, awaitingSelection: false, lines: [], error: null });
 }

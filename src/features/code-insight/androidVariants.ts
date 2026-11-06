@@ -1,4 +1,3 @@
-import { create } from "zustand";
 import { editorsFor } from "@/editor/api";
 import { formatMessage, tx } from "@/platform/i18n";
 import { commands, call, IpcError, isTauri, nextRequestId, type RequestId } from "@/platform/ipc";
@@ -7,27 +6,13 @@ import { maybeEditorService } from "@/workbench/contributions";
 import { androidCallUsages, indexDir, moduleIndexPath, StaleAndroidSources, validVariant } from "./androidIndex";
 import type { CaretContext } from "./ipc";
 
-type Choice = { module: string | null; name: string };
-type Phase = "idle" | "discovering" | "indexing" | "stale" | "ready" | "failed";
-interface State {
-  root: string | null;
-  trusted: boolean;
-  variants: Choice[];
-  selected: string | null;
-  application: string | null;
-  phase: Phase;
-  error: string | null;
-}
-const initial: State = {
-  root: null,
-  trusted: false,
-  variants: [],
-  selected: null,
-  application: null,
-  phase: "idle",
-  error: null,
-};
-export const useAndroidVariants = create<State>(() => initial);
+import {
+  initialAndroidVariants as initial,
+  useAndroidVariants,
+  type AndroidChoice as Choice,
+} from "@/platform/androidVariants";
+export { useAndroidVariants } from "@/platform/androidVariants";
+
 let revision = 0;
 let activeRequest: RequestId | null = null;
 let pending: Promise<void> | null = null;

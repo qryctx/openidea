@@ -14,9 +14,11 @@ export const commands = {
 	 *  Follows `serial`'s log until the request is cancelled, in batches of lines.
 	 *  `clear` empties the device's buffers first.
 	 */
-	androidLogcat: (request: RequestId, serial: string, clear: boolean, onLines: Channel<LogcatLine[]>) => typedError<null, IdeError>(__TAURI_INVOKE("android_logcat", { request, serial, clear, onLines })),
+	androidLogcat: (request: RequestId, serial: string, clear: boolean, pid: number | null, since: string | null, onLines: Channel<LogcatLine[]>) => typedError<null, IdeError>(__TAURI_INVOKE("android_logcat", { request, serial, clear, pid, since, onLines })),
 	androidDiscoverVariants: (request: RequestId, root: string) => typedError<AndroidVariant[], IdeError>(__TAURI_INVOKE("android_discover_variants", { request, root })),
 	androidIndexVariant: (request: RequestId, root: string, module: string, variant: string) => typedError<string, IdeError>(__TAURI_INVOKE("android_index_variant", { request, root, module, variant })),
+	/**  Builds exactly one selected AGP variant and deploys it to one explicit device. */
+	androidRunVariant: (request: RequestId, root: string, module: string, variant: string, serial: string, onProgress: Channel<AndroidRunStage>) => typedError<AndroidRunResult, IdeError>(__TAURI_INVOKE("android_run_variant", { request, root, module, variant, serial, onProgress })),
 	recentProjects: () => __TAURI_INVOKE<RecentProject[]>("recent_projects"),
 	removeRecentProject: (path: string) => typedError<null, IdeError>(__TAURI_INVOKE("remove_recent_project", { path })),
 	/**  The welcome screen's project groups. */
@@ -1628,6 +1630,19 @@ export type AndroidDevice = {
 	device: string | null,
 	transportId: string | null,
 };
+
+export type AndroidRunResult = {
+	serial: string,
+	module: string,
+	variant: string,
+	applicationId: string,
+	apk: string,
+	component: string,
+	pid: number,
+	logSince: string,
+};
+
+export type AndroidRunStage = "building" | "installing" | "launching";
 
 export type AndroidVariant = {
 	module: string,

@@ -5,6 +5,7 @@ plugins {
 android {
     namespace = "dev.openide.sample"
     compileSdk = 36
+    buildFeatures.buildConfig = true
 
     defaultConfig {
         applicationId = "dev.openide.sample"

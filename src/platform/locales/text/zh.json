@@ -6261,5 +6261,20 @@
   "Android project sync failed": "Android 工程同步失败",
   "Syncing Android variants…": "正在同步 Android 变体…",
   "Preparing {variant}…": "正在准备 {variant}…",
-  "Refreshing Android references…": "正在刷新 Android 引用…"
+  "Refreshing Android references…": "正在刷新 Android 引用…",
+  "Building…": "正在构建…",
+  "Installing…": "正在安装…",
+  "Launching…": "正在启动…",
+  "Launched": "已启动",
+  "Run failed": "运行失败",
+  "Select an online Android device": "请选择已连接的 Android 设备",
+  "Android Run returned a different target": "Android 运行返回了其他目标",
+  "Android Run failed": "Android 运行失败",
+  "Select Android device": "选择 Android 设备",
+  "Android deployment device": "Android 部署设备",
+  "Cancel Android Run": "取消 Android 运行",
+  "Refresh Android devices": "刷新 Android 设备",
+  "Show Android application logs": "显示 Android 应用日志",
+  "Show all processes": "显示所有进程",
+  "Detach Android application logs": "停止跟随 Android 应用日志"
 }
