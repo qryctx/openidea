@@ -2,7 +2,7 @@
   "observedOn": "2026-11-06",
   "baselineTag": "v0.1.37",
   "platform": "macOS arm64",
-  "mode": "Native Tauri development window; pre-generated AGP indices; restricted project mode",
+  "mode": "Native Tauri development window; pre-generated AGP indices",
   "switches": [
     {
       "from": "demoDebug",
@@ -270,5 +270,44 @@
       ],
       "note": "Android method calls · demoDebug"
     }
-  ]
+  ],
+  "runs": [
+    {
+      "projectMode": "restricted",
+      "queriesPassed": 12,
+      "nonEmptyTabsCleared": [
+        {
+          "from": "demoDebug",
+          "to": "fullDebug",
+          "priorTabs": 1,
+          "remainingTabs": 0
+        },
+        {
+          "from": "fullDebug",
+          "to": "demoDebug",
+          "priorTabs": 1,
+          "remainingTabs": 0
+        }
+      ]
+    },
+    {
+      "projectMode": "trusted",
+      "queriesPassed": 12,
+      "nonEmptyTabsCleared": [
+        {
+          "from": "demoDebug",
+          "to": "fullDebug",
+          "priorTabs": 1,
+          "remainingTabs": 0
+        },
+        {
+          "from": "fullDebug",
+          "to": "demoDebug",
+          "priorTabs": 1,
+          "remainingTabs": 0
+        }
+      ]
+    }
+  ],
+  "sameFilesAndUtf16RangesInBothRuns": true
 }

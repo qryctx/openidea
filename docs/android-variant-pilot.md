@@ -45,7 +45,7 @@ pnpm tauri build --bundles app --config src-tauri/tauri.android-pilot.conf.json
 - 上游桌面构建：macOS arm64、Node 26.13、pnpm 11.25.0、Rust 1.99.1。从干净标签构建 Tauri release，Cargo 报告 19 分 37 秒；应用包 148.20 MiB。实际启动后窗口显示 `OpenIDEA 0.1.37`；独立冒烟工程成功打开，日志确认两个文件完成索引。应用包不含 JDK、Android SDK、Rust 构建目录或通用 Gradle 缓存。
 - Android：Gradle 9.5.0 / AGP 9.3.1 / lint 32.3.1 / JDK 21 / compileSdk 36。两个 APK 大小分别为 879,276 和 879,288 字节；字节码中有两个不同的方法签名。每个变体分析 7 个 Java/Kotlin 源文件；本次输出的两份 JSON 合计约 30 KiB。
 - 精度：生成器的 2 变体 × 2 声明语言 × 2 种调用共 8 组独立比对通过，文件和标识符区间逐项吻合。测试还验证了同名类、方法重载、已修改文件、错误变体、编译失败导致旧索引失效，以及 BOM / CRLF / 补充字符的 UTF-16 位置。另有 [Kotlin 与 JVM 名称不同的回归测试](../android-support/tests/renamed-method.py)：无法完整对应名称的调用会明确标为不完整。
-- 桌面：在同一个 Tauri 原生窗口点击状态栏，按 demo → full → demo 执行 Find Usages，12/12 通过。两次切换均把旧结果标签从 1 清为 0；无参调用与带参重载在同一行时仍只高亮正确的方法名。见[这次运行逐项返回的真实路径和区间](validation/android-variant-desktop.json)。第一轮使用预生成索引，工程处于限制执行项目命令的模式，未从窗口发起 Gradle 命令。
+- 桌面：在同一个 Tauri 原生窗口点击状态栏，按 demo → full → demo 执行 Find Usages，12/12 通过。两次切换均把旧结果标签从 1 清为 0；无参调用与带参重载在同一行时仍只高亮正确的方法名。见[这次运行逐项返回的真实路径和区间](validation/android-variant-desktop.json)。在受限模式和信任工程模式分别运行，各 12/12，返回的文件和 UTF-16 区间逐项一致。两轮使用同一份预生成索引，未在 IDE 中安装可选的 JDT、Kotlin 语言服务，也未从窗口发起 Gradle 命令。
 - 前端：全量 Vitest 6,582 通过、6 跳过；搜索与引用高亮的 Chromium 回归用例 9 通过。
 
 ## 范围与代价
