@@ -1,0 +1,35 @@
+docs/validation/android-variant-desktop.json
+  s_f2a417d53e68e4::t_09bb3baf9620e3 1-274
+docs/android-variant-pilot.md
+  s_f2a417d53e68e4::t_6bf4b8a9399f45 45
+  s_f2a417d53e68e4::t_d0955bce32bf28 48
+  s_f2a417d53e68e4::t_e4878532eb230e 53
+android-support/verify-desktop.mjs
+  s_f2a417d53e68e4::t_f3d02b62f3bb39 258-259,261-264,266-279,293-294,296
+  s_f2a417d53e68e4::t_78ffefd9a3d778 74,76-77
+  s_f2a417d53e68e4::t_287b880df96e3f 110-134,256,295
+docs/superpowers/plans/2026-11-06-android-variant-references.md
+  s_f2a417d53e68e4::t_09bb3baf9620e3 23-24
+  s_f2a417d53e68e4::t_7d2ad8ec8e292e 20
+NOTICE
+  s_f2a417d53e68e4::t_9a91a4b2093121 17-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "69ea33c8f0ca269f7a6fc6ffe38605d94171c80c",
+  "prompts": {},
+  "logical_commit_id": "69ea33c8f0ca269f7a6fc6ffe38605d94171c80c",
+  "sessions": {
+    "s_f2a417d53e68e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af46-6aed-76d3-a86d-eb319c695285",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "qryctx <48385019+qryctx@users.noreply.github.com>",
+      "total_additions": 333,
+      "total_deletions": 8
+    }
+  }
+}
