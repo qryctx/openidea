@@ -1,0 +1,22 @@
+docs/android-device-run.md
+  s_f2a417d53e68e4::t_8cbbaab7c368c7 17-19
+docs/validation/android-device-run.json
+  s_f2a417d53e68e4::t_653e63909db347 96-167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "ad5711ebe3f0b508dea382560f57fe196b7d485d",
+  "prompts": {},
+  "logical_commit_id": "ad5711ebe3f0b508dea382560f57fe196b7d485d",
+  "sessions": {
+    "s_f2a417d53e68e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af46-6aed-76d3-a86d-eb319c695285",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "qryctx <48385019+qryctx@users.noreply.github.com>"
+    }
+  }
+}
