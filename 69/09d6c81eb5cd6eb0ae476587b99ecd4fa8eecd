@@ -1,0 +1,25 @@
+docs/android-variant-pilot.md
+  s_f2a417d53e68e4::t_776dd17b49d7a8 14-24
+  s_f2a417d53e68e4::t_aba168d106b793 32-33
+  s_f2a417d53e68e4::t_baaf15695c149c 62-63
+docs/validation/android-variant-desktop.json
+  s_f2a417d53e68e4::t_b529451b7e2985 312-335
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "6909d6c81eb5cd6eb0ae476587b99ecd4fa8eecd",
+  "prompts": {},
+  "logical_commit_id": "6909d6c81eb5cd6eb0ae476587b99ecd4fa8eecd",
+  "sessions": {
+    "s_f2a417d53e68e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af46-6aed-76d3-a86d-eb319c695285",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "qryctx <48385019+qryctx@users.noreply.github.com>",
+      "total_additions": 13
+    }
+  }
+}
