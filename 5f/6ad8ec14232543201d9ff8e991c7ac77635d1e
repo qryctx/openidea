@@ -1,0 +1,20 @@
+docs/validation/android-device-debug.json
+  s_f2a417d53e68e4::t_e4433afc12f29a 120-216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "5f6ad8ec14232543201d9ff8e991c7ac77635d1e",
+  "prompts": {},
+  "logical_commit_id": "5f6ad8ec14232543201d9ff8e991c7ac77635d1e",
+  "sessions": {
+    "s_f2a417d53e68e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af46-6aed-76d3-a86d-eb319c695285",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "qryctx <48385019+qryctx@users.noreply.github.com>"
+    }
+  }
+}
