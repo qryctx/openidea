@@ -1,0 +1,24 @@
+docs/android-project-sync.md
+  s_f2a417d53e68e4::t_80281aaca7998c 18
+scripts/package-android-macos.sh
+  s_f2a417d53e68e4::t_5add1730f833ae 4-5
+src-tauri/tauri.android.conf.json
+  s_f2a417d53e68e4::t_1f32e28f1da55b 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "ce7f386d08c2c93c665b40eca708535729a4fd68",
+  "prompts": {},
+  "logical_commit_id": "ce7f386d08c2c93c665b40eca708535729a4fd68",
+  "sessions": {
+    "s_f2a417d53e68e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af46-6aed-76d3-a86d-eb319c695285",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "qryctx <48385019+qryctx@users.noreply.github.com>"
+    }
+  }
+}
