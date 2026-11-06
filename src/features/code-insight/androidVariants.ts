@@ -119,13 +119,34 @@ export function discoverAndroidVariants(root: string | null, trusted: boolean) {
       : await savedVariants(root);
     if (job !== revision) return;
     const { application, selected } = useAndroidVariants.getState();
-    const choice = variants.find((v) => v.module === application && v.name === selected);
-    if (selected && !choice) {
+    let saved: Choice | null = null;
+    let disabled = false;
+    try {
+      const value = JSON.parse(localStorage.getItem("openandroidstudio.variant:" + root) ?? "null") as Choice | null;
+      disabled = value?.name === "";
+      saved = value;
+    } catch {
+      // Ignore invalid preferences and allow a new selection.
+    }
+    const available = variants.filter((v) => v.module !== null);
+    const modules = new Set(available.map((v) => v.module));
+    const fallback =
+      modules.size === 1
+        ? (available.find((v) => v.name.toLowerCase() === "debug") ?? available.find((v) => v.name.endsWith("Debug")))
+        : undefined;
+    const choice =
+      variants.find((v) => v.module === application && v.name === selected) ??
+      (!selected && trusted && !disabled
+        ? saved
+          ? variants.find((v) => v.module === saved.module && v.name === saved.name)
+          : fallback
+        : undefined);
+    if ((selected || (saved?.name && !disabled)) && !choice) {
       useAndroidVariants.setState({
         variants,
         phase: "failed",
         error: formatMessage(tx("Android variant {variant} is no longer available. Select another variant."), {
-          variant: selected,
+          variant: selected ?? saved?.name ?? "",
         }),
       });
       return;
@@ -145,6 +166,11 @@ export function selectAndroidVariant(arg: unknown): Promise<void> | void {
   if (!root || phase === "discovering") return;
   if (arg === null) {
     supersede();
+    try {
+      localStorage.setItem("openandroidstudio.variant:" + root, JSON.stringify({ module: null, name: "" }));
+    } catch {
+      // The selection remains usable when browser storage is unavailable.
+    }
     useAndroidVariants.setState({ selected: null, application: null, phase: "idle", error: null });
     return;
   }
@@ -161,6 +187,11 @@ export function selectAndroidVariant(arg: unknown): Promise<void> | void {
   );
   if (matches.length !== 1) return;
   const choice = matches[0]!;
+  try {
+    localStorage.setItem("openandroidstudio.variant:" + root, JSON.stringify(choice));
+  } catch {
+    // The selection remains usable when browser storage is unavailable.
+  }
   const job = supersede();
   useAndroidVariants.setState({
     selected: choice.name,

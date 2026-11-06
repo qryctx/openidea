@@ -39,6 +39,7 @@ function deferred<T>() {
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  localStorage.clear();
   api.androidDiscoverVariants.mockResolvedValue(ok([demo, full]));
   api.androidIndexVariant.mockImplementation(async (_request, _root, module: string, variant: string) =>
     ok(moduleIndexPath(module, variant)),
@@ -55,7 +56,7 @@ afterEach(async () => {
 it("opens a clean trusted project and only generates the chosen application's index", async () => {
   await discoverAndroidVariants(root, true);
   expect(useAndroidVariants.getState().variants).toEqual([demo, full]);
-  expect(api.androidIndexVariant).not.toHaveBeenCalled();
+  expect(api.androidIndexVariant).toHaveBeenCalledWith(expect.any(Number), root, demo.module, demo.name);
   expect(api.fsReadDir).not.toHaveBeenCalled();
   await selectAndroidVariant("demoDebug");
   expect(api.androidIndexVariant).toHaveBeenCalledWith(expect.any(Number), root, demo.module, demo.name);
@@ -81,6 +82,7 @@ it("keeps identical variant names in separate application modules", async () => 
 
 it("stops an old index and will not publish or query it after a fast switch", async () => {
   await discoverAndroidVariants(root, true);
+  api.androidIndexVariant.mockClear();
   const deferredDemo = deferred<ReturnType<typeof ok<string>>>();
   api.androidIndexVariant.mockImplementationOnce(() => deferredDemo.promise);
   const old = selectAndroidVariant(demo);
@@ -139,13 +141,13 @@ it("coalesces saved or newly created sources, ignores generated files and redisc
   expect(useAndroidVariants.getState().phase).toBe("stale");
   await vi.advanceTimersByTimeAsync(700);
   expect(api.androidDiscoverVariants).toHaveBeenCalledTimes(1);
-  expect(api.androidIndexVariant).toHaveBeenCalledTimes(2);
+  expect(api.androidIndexVariant).toHaveBeenCalledTimes(3);
   api.androidDiscoverVariants.mockResolvedValueOnce(ok([full]));
   androidFilesChanged([root + "/settings.gradle.kts"]);
   androidFilesChanged([root + "/app/src/main/java/A.java"]);
   await vi.advanceTimersByTimeAsync(700);
   expect(api.androidDiscoverVariants).toHaveBeenCalledTimes(2);
-  expect(api.androidIndexVariant).toHaveBeenCalledTimes(2);
+  expect(api.androidIndexVariant).toHaveBeenCalledTimes(3);
   await expect(selectedAndroidUsages(caret)).rejects.toThrow(/no longer available/);
 });
 
@@ -209,4 +211,25 @@ it("a missed change to a saved source refreshes the selected variant once and re
     note: "Android constructor usages · demoDebug",
   });
   expect(api.androidIndexVariant).toHaveBeenCalledTimes(2);
+});
+
+it("restores the selected Android variant after reopening the project", async () => {
+  await discoverAndroidVariants(root, true);
+  await selectAndroidVariant(full);
+  await discoverAndroidVariants(null, false);
+  await discoverAndroidVariants(root, true);
+  expect(useAndroidVariants.getState()).toMatchObject({
+    application: full.module,
+    selected: full.name,
+    phase: "ready",
+  });
+});
+
+it("does not silently switch flavors when the saved variant disappears", async () => {
+  await discoverAndroidVariants(root, true);
+  await selectAndroidVariant(full);
+  await discoverAndroidVariants(null, false);
+  api.androidDiscoverVariants.mockResolvedValue(ok([demo]));
+  await discoverAndroidVariants(root, true);
+  expect(useAndroidVariants.getState()).toMatchObject({ phase: "failed" });
 });
