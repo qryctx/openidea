@@ -43,7 +43,8 @@ pnpm tauri build --bundles app --config src-tauri/tauri.android-pilot.conf.json
 
 - 基线：个人 fork 保留 [上游 v0.1.37](https://github.com/l0ng-ai/openidea/releases/tag/v0.1.37) 历史，起点为 `d3d0fd23c6141a019632e71ac89796c2c4d5e76b`。
 - Android：Gradle 9.5.0 / AGP 9.3.1 / lint 32.3.1 / JDK 21 / compileSdk 36。两个 APK 大小分别为 879,276 和 879,288 字节；字节码中有两个不同的方法签名。每个变体分析 7 个 Java/Kotlin 源文件；本次输出的两份 JSON 合计约 30 KiB。
-- 精度：生成器的 2 变体 × 2 声明语言 × 2 种调用共 8 组独立比对通过，文件和标识符区间逐项吻合。测试还验证了同名类、方法重载、已修改文件、错误变体、编译失败导致旧索引失效，以及 BOM / CRLF / 补充字符的 UTF-16 位置。
+- 精度：生成器的 2 变体 × 2 声明语言 × 2 种调用共 8 组独立比对通过，文件和标识符区间逐项吻合。测试还验证了同名类、方法重载、已修改文件、错误变体、编译失败导致旧索引失效，以及 BOM / CRLF / 补充字符的 UTF-16 位置。另有 [Kotlin 与 JVM 名称不同的回归测试](../android-support/tests/renamed-method.py)：无法完整对应名称的调用会明确标为不完整。
+- 前端：全量 Vitest 6,582 通过、6 跳过；搜索与引用高亮的 Chromium 回归用例 9 通过。
 
 ## 范围与代价
 

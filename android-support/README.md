@@ -27,3 +27,5 @@ To inspect one invocation, first build the detector with the wrapper, then run t
 ```
 
 The init script configures lint only for the indexing invocation. It does not require modifying the app's Gradle scripts or adding a runtime dependency to the APK.
+
+Run `python3 android-support/tests/renamed-method.py` for the isolated Kotlin/JVM name regression. It creates a temporary copy of the public fixture, compiles a Kotlin member with `@JvmName` and calls it by both spellings. The index must withhold those method names and still resolve ordinary member and constructor queries.
