@@ -117,5 +117,101 @@
   "resolvedDuringAcceptance": [
     "On this Pixel, adb jdwp prints the active process IDs and keeps listening. Waiting for it to exit timed out; the final implementation reads the target PID line and closes only its own tracker.",
     "The tested adapter sent two stopped notifications for the same thread before any resume. OpenAndroidStudio now refreshes frames for every notification and counts one breakpoint hit for that thread during one pause. Both final cases showed one hit."
-  ]
+  ],
+  "signedDesktop": {
+    "sourceCommit": "c9bf0afcfd8524c2f9e2db6caaf6881f96b5a3c3",
+    "signedExecutableSHA256": "53b2fee73626c7bf45d1c5a777f050da470ae161e4567b0257a132967bc3a33e",
+    "platform": "macOS arm64, ad-hoc signed production build",
+    "duAllocatedKiB": 141772,
+    "previousRunEditionKiB": 141628,
+    "embeddedSourceMaps": 0,
+    "optionalAdapterInstalledViaPrompt": true,
+    "adapterVersion": "0.4.4",
+    "optionalAdapterDiskKiB": 9636,
+    "cases": [
+      {
+        "variant": "demoDebug",
+        "applicationId": "dev.openide.sample.demo",
+        "pid": 3693,
+        "breakpoint": {
+          "source": "libraries/contracts/src/main/java/dev/openide/sample/contract/JavaGreeting.java",
+          "line": 5
+        },
+        "applicationFrames": [
+          {
+            "method": "message",
+            "source": "libraries/contracts/src/main/java/dev/openide/sample/contract/JavaGreeting.java",
+            "line": 5
+          },
+          {
+            "method": "flavorGreeting",
+            "source": "app/src/demo/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+            "line": 5
+          },
+          {
+            "method": "onCreate",
+            "source": "app/src/main/kotlin/dev/openide/sample/MainActivity.kt",
+            "line": 16
+          }
+        ],
+        "samePhysicalPhone": true,
+        "beforeGreetingMarkersAtPause": 1,
+        "completionMarkersAtPause": 0,
+        "completionMarkersAfterResume": 1,
+        "completionLog": "launch variant=demoDebug package=dev.openide.sample.demo greeting=Demo: Hello from Java! / Hello from Kotlin!",
+        "targetForwardCountAfterStop": 0,
+        "builtAndInstalledApkSHA256": "a90f7175e641800be960bec7ef8a2c2f8c6579ea38544edeed18efcfc486a3ef"
+      },
+      {
+        "variant": "fullDebug",
+        "applicationId": "dev.openide.sample.full",
+        "pid": 4087,
+        "breakpoint": {
+          "source": "libraries/contracts/src/main/kotlin/dev/openide/sample/contract/KotlinGreeting.kt",
+          "line": 5
+        },
+        "applicationFrames": [
+          {
+            "method": "message",
+            "source": "libraries/contracts/src/main/kotlin/dev/openide/sample/contract/KotlinGreeting.kt",
+            "line": 5
+          },
+          {
+            "method": "kotlinMessage",
+            "source": "app/src/full/java/dev/openide/sample/contract/JavaCaller.java",
+            "line": 6
+          },
+          {
+            "method": "flavorGreeting",
+            "source": "app/src/full/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+            "line": 5
+          },
+          {
+            "method": "onCreate",
+            "source": "app/src/main/kotlin/dev/openide/sample/MainActivity.kt",
+            "line": 16
+          }
+        ],
+        "samePhysicalPhone": true,
+        "beforeGreetingMarkersAtPause": 1,
+        "completionMarkersAtPause": 0,
+        "completionMarkersAfterResume": 1,
+        "completionLog": "launch variant=fullDebug package=dev.openide.sample.full greeting=Full: Hello from Java! / Hello from Kotlin!",
+        "targetForwardCountAfterStop": 0,
+        "builtAndInstalledApkSHA256": "cb17d3561b8a8dbb3e955086057c3eaf5b13f9e2e8d75cd7b7644af7c8511f3c",
+        "stepOver": {
+          "fromLine": 5,
+          "toLine": 6,
+          "source": "libraries/contracts/src/main/kotlin/dev/openide/sample/contract/KotlinGreeting.kt",
+          "localName": "greeting",
+          "localValue": "Hello from Kotlin",
+          "completionMarkersAtStep": 0
+        }
+      }
+    ],
+    "observations": [
+      "The signed UI exposed the selected source line, stack frames and locals. The hit counter was checked via development workbench state.",
+      "On first use with prior project windows open, the trust dialog appeared behind an empty window. Window > Bring All to Front exposed it. The notification for the first missing-adapter attempt could remain in history after the successful retry."
+    ]
+  }
 }
