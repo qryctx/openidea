@@ -1,0 +1,27 @@
+docs/android-edition-scope.md
+  s_f2a417d53e68e4::t_5b959ee1b30f62 1-6,14-16,19-22,33-35,38-39,46-50,52-53
+  s_f2a417d53e68e4::t_eec8a3666b911d 7-13,23-32,40-45
+  s_f2a417d53e68e4::t_016bfc65543477 17-18,51
+  s_f2a417d53e68e4::t_64e799a410d8ee 36-37
+README.md
+  s_f2a417d53e68e4::t_016bfc65543477 5-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "45dd9907f035f5d202872b181fb5eab188e40a69",
+  "prompts": {},
+  "logical_commit_id": "45dd9907f035f5d202872b181fb5eab188e40a69",
+  "sessions": {
+    "s_f2a417d53e68e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af46-6aed-76d3-a86d-eb319c695285",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "qryctx <48385019+qryctx@users.noreply.github.com>",
+      "total_additions": 79,
+      "total_deletions": 24
+    }
+  }
+}
