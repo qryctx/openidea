@@ -17,7 +17,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import type { FileMatches, SearchQuery, RunConfig } from "@/bindings";
+import type { AndroidDebugTarget, FileMatches, SearchQuery, RunConfig } from "@/bindings";
 import type { MenuItem } from "@/ui/Menu";
 import type { DragData } from "@/ui/pointerDrag";
 import type { TreeReorder } from "@/ui/Tree";
@@ -1456,6 +1456,13 @@ export interface DebugServiceSession {
 export const useDebugRunSessions = create<{
   sessions: DebugRunSession[];
   serviceSessions: DebugServiceSession[];
+  /** Resolves when this Android DAP session closes; abort stops just this target. */
+  attachAndroid?: (
+    root: string,
+    target: AndroidDebugTarget,
+    signal: AbortSignal,
+    onAttached: () => void,
+  ) => Promise<void>;
   Console: ComponentType<{ sessionId: number }> | null;
 }>(() => ({ sessions: [], serviceSessions: [], Console: null }));
 

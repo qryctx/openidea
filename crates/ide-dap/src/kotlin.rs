@@ -12,28 +12,49 @@ pub const ADAPTER: &str = "kotlin-debug-adapter";
 pub struct SourceMirror {
     dir: tempfile::TempDir,
     paths: HashMap<PathBuf, PathBuf>,
+    originals: HashMap<PathBuf, PathBuf>,
     copies: Vec<(PathBuf, PathBuf)>,
     source_dir: PathBuf,
+    indexed: bool,
     roots: HashMap<PathBuf, usize>,
 }
 
 impl SourceMirror {
     pub fn create(project: &Path) -> IdeResult<Self> {
+        Self::from_sources(project, None)
+    }
+
+    /// The Android index supplies the exact compiled files. Scanning the project would also include
+    /// sibling flavors with identical classes, allowing their source paths to capture breakpoints.
+    pub(crate) fn from_sources(project: &Path, files: Option<Vec<PathBuf>>) -> IdeResult<Self> {
         let base = fs::canonicalize(std::env::temp_dir())?;
         // Check before creating anything, including when TMPDIR points into a project.
         if base.starts_with(fs::canonicalize(project)?) {
             return Err(IdeError::invalid("Kotlin source mirror must be outside the project"));
         }
         let dir = tempfile::Builder::new().prefix("openidea-kotlin-").tempdir_in(base)?;
-        let source_dir = if project.join("src").is_dir() { project.join("src") } else { project.to_owned() };
+        let source_dir =
+            if files.is_none() && project.join("src").is_dir() { project.join("src") } else { project.to_owned() };
         let mut mirror = Self {
             dir,
             paths: HashMap::new(),
+            originals: HashMap::new(),
             copies: Vec::new(),
             source_dir: source_dir.clone(),
+            indexed: files.is_some(),
             roots: HashMap::new(),
         };
-        mirror.scan(&source_dir)?;
+        if let Some(files) = files {
+            for path in files {
+                if path.starts_with(&source_dir)
+                    && matches!(path.extension().and_then(|s| s.to_str()), Some("kt" | "java"))
+                {
+                    mirror.add(&path)?;
+                }
+            }
+        } else {
+            mirror.scan(&source_dir)?;
+        }
         Ok(mirror)
     }
 
@@ -85,7 +106,7 @@ impl SourceMirror {
         mirror.push(real.file_name().ok_or_else(|| IdeError::invalid("Source has no filename"))?);
         // Same package and file name in one source set (e.g. main and test of a module):
         // the first wins; breakpoints in the other stay unverified instead of failing the session.
-        if self.paths.values().any(|p| p == &mirror) {
+        if self.originals.contains_key(&mirror) {
             tracing::debug!("Kotlin debug mirror: skipping ambiguous {}", real.display());
             return Ok(());
         }
@@ -94,6 +115,7 @@ impl SourceMirror {
             fs::copy(real, &mirror)?;
             self.copies.push((real.to_owned(), mirror.clone()));
         }
+        self.originals.insert(mirror.clone(), real.to_owned());
         self.paths.insert(real.to_owned(), mirror);
         Ok(())
     }
@@ -101,8 +123,12 @@ impl SourceMirror {
     pub fn adapter_path(&self, real: &Path) -> Option<PathBuf> {
         self.paths.get(real).cloned()
     }
+    pub fn outside_index(&self, path: &Path) -> bool {
+        self.indexed && !self.paths.contains_key(path)
+    }
+
     pub fn client_path(&self, mirror: &Path) -> Option<PathBuf> {
-        self.paths.iter().find_map(|(real, p)| (p == mirror).then(|| real.clone()))
+        self.originals.get(mirror).cloned()
     }
     pub fn refresh(&mut self) -> IdeResult<()> {
         for (real, mirror) in &self.copies {
@@ -110,7 +136,10 @@ impl SourceMirror {
                 fs::copy(real, mirror)?;
             }
         }
-        self.scan(&self.source_dir.clone())
+        if !self.indexed {
+            self.scan(&self.source_dir.clone())?;
+        }
+        Ok(())
     }
     pub fn translate(&self, value: &mut Value) {
         match value {
@@ -181,6 +210,29 @@ fn package(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn android_source_mirror_excludes_the_other_flavor_even_after_refresh() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let demo = root.join("app/src/demo/kotlin/Caller.kt");
+        let full = root.join("app/src/full/kotlin/Caller.kt");
+        let dependency = root.join("library/src/main/java/Greeting.java");
+        for file in [&demo, &full, &dependency] {
+            fs::create_dir_all(file.parent().unwrap()).unwrap();
+            fs::write(file, "package sample;").unwrap();
+        }
+        for (active, other) in [(&demo, &full), (&full, &demo)] {
+            let mut mirror = SourceMirror::from_sources(root, Some(vec![active.clone(), dependency.clone()])).unwrap();
+            mirror.refresh().unwrap();
+            assert!(mirror.outside_index(other));
+            assert!(mirror.adapter_path(other).is_none());
+            for file in [active, &dependency] {
+                let mirror_path = mirror.adapter_path(file).unwrap();
+                assert_eq!(mirror.client_path(&mirror_path).as_ref(), Some(file));
+            }
+        }
+    }
+
     #[test]
     fn external_mirror_round_trip_and_cleanup() {
         let project = tempfile::tempdir().unwrap();

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { commands, type AndroidDevice, type AndroidRunResult, type ProjectInfo } from "@/platform/ipc";
 import { initialAndroidVariants, useAndroidVariants } from "@/platform/androidVariants";
+import { useDebugRunSessions } from "@/workbench/contributions";
 import { registerAction } from "@/platform/actions";
 import { useProject } from "@/platform/project";
 import { ANDROID_VARIANT, useRun } from "./store";
@@ -63,6 +64,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   stop();
+  useDebugRunSessions.setState({ attachAndroid: undefined });
   stopLog();
   stopDetach();
   useAndroidVariants.setState(initialAndroidVariants);
@@ -168,4 +170,90 @@ it("does not select Android Run for an untrusted snapshot", () => {
   });
   expect(useRun.getState().selectedId).toBe("gradle");
   expect(commands.androidDevices).not.toHaveBeenCalled();
+});
+
+it("waits for the active variant index and holds the device forward until the DAP session ends", async () => {
+  let endDap!: () => void;
+  let endNative!: () => void;
+  useDebugRunSessions.setState({
+    attachAndroid: vi.fn(async (_root, _ready, _signal, attached) => {
+      attached();
+      await new Promise<void>((resolve) => {
+        endDap = resolve;
+      });
+    }),
+  });
+  const native = vi
+    .spyOn(commands, "androidDebugVariant")
+    .mockImplementation(async (_id, _root, _module, variant, _serial, _stages, ready) => {
+      ready.onmessage({ run: result(variant), port: 45000 });
+      await new Promise<void>((resolve) => {
+        endNative = resolve;
+      });
+      return { status: "ok", data: null };
+    });
+  vi.mocked(commands.cancelRequest).mockImplementation(async () => endNative());
+  select("demoDebug");
+  await refreshAndroidDevices();
+  useAndroidVariants.setState({ phase: "indexing" });
+  const work = runAndroidVariant("debug");
+  await Promise.resolve();
+  expect(native).not.toHaveBeenCalled();
+  useAndroidVariants.setState({ phase: "ready" });
+  await vi.waitFor(() => expect(useAndroidRun.getState().phase).toBe("debugging"));
+  expect(useDebugRunSessions.getState().attachAndroid).toHaveBeenCalledWith(
+    root,
+    { run: result("demoDebug"), port: 45000 },
+    expect.any(AbortSignal),
+    expect.any(Function),
+  );
+  expect(commands.cancelRequest).not.toHaveBeenCalled();
+  endDap();
+  await work;
+  expect(commands.cancelRequest).toHaveBeenCalledWith(native.mock.calls[0]![0]);
+  expect(useAndroidRun.getState().phase).toBe("idle");
+});
+
+it("cancels an active Android debugger before a new variant may deploy", async () => {
+  const aborted = vi.fn();
+  let endNative!: () => void;
+  useDebugRunSessions.setState({
+    attachAndroid: async (_root, _target, signal, attached) => {
+      attached();
+      await new Promise<void>((resolve) =>
+        signal.addEventListener(
+          "abort",
+          () => {
+            aborted();
+            resolve();
+          },
+          { once: true },
+        ),
+      );
+    },
+  });
+  vi.spyOn(commands, "androidDebugVariant").mockImplementation(
+    async (_id, _root, _module, variant, _serial, _stages, ready) => {
+      ready.onmessage({ run: result(variant), port: 45000 });
+      await new Promise<void>((resolve) => {
+        endNative = resolve;
+      });
+      return { status: "ok", data: null };
+    },
+  );
+  const run = vi.spyOn(commands, "androidRunVariant").mockResolvedValue({ status: "ok", data: result("fullDebug") });
+  select("demoDebug");
+  await refreshAndroidDevices();
+  const debug = runAndroidVariant("debug");
+  await vi.waitFor(() => expect(useAndroidRun.getState().phase).toBe("debugging"));
+  select("fullDebug");
+  expect(aborted).toHaveBeenCalledOnce();
+  expect(detach).toHaveBeenCalledOnce();
+  const next = runAndroidVariant();
+  await Promise.resolve();
+  expect(run).not.toHaveBeenCalled();
+  endNative();
+  await Promise.all([debug, next]);
+  expect(run).toHaveBeenCalledOnce();
+  expect(useAndroidRun.getState().result?.variant).toBe("fullDebug");
 });

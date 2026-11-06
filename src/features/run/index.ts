@@ -162,6 +162,7 @@ async function debugConfig(config: RunConfig, chain: readonly string[] = []) {
 }
 
 async function debugSelected() {
+  if (useRun.getState().selectedId === ANDROID_VARIANT) return runAndroidVariant("debug");
   await ensureConfigs();
   if (currentFileSelected()) return runCurrentFile(true);
   const config = selectedConfig();

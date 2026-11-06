@@ -16,6 +16,7 @@ pub struct AppState {
     pub host: Arc<Host>,
     pub startup: Startup,
     pub recent: RecentProjects,
+    pub(crate) android_debug: Arc<crate::commands::android::DebugSessions>,
     /// Plugins (`ide_host::plugins`), shared by all windows.
     pub plugins: Arc<ide_host::plugins::PluginHost>,
     /// The built-in web server (Open In › Browser, the editor's browser bar).
@@ -97,6 +98,7 @@ impl AppState {
         }));
         Ok(Self {
             recent: RecentProjects::load(&config_dir),
+            android_debug: Arc::default(),
             askpass: start_askpass(&app),
             sink: global_sink,
             plugins: crate::commands::plugin::create_host(&app, &data_dir, &host)?,

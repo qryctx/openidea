@@ -25,6 +25,10 @@ Start at either class declaration in `:contract`, then at its zero-argument `mes
 
 `expected-usages.json` records the project-relative URI and zero-based UTF-16 range for each declaration and result. End positions are exclusive. The callers deliberately share the declarations' package so the expected locations contain only constructor calls. The `decoy` package supplies two distinct same-named types, their own `message()` methods and calls, plus matching comment and string text. Those locations and callers in the inactive flavor must be excluded.
 
+## Android startup breakpoints
+
+Use the toolbar Debug button for the selected variant and device. The library’s Java greeting and two-line Kotlin greeting are executed during the first Activity creation, before the page is displayed. For breakpoints, stepping and acceptance commands see [Android physical-device Debug](../../docs/android-device-debug.md).
+
 ## Run the desktop acceptance check
 
 From the repository root, start the development desktop application with `pnpm dev:app`. In a second terminal run `node android-support/verify-desktop.mjs`. The driver opens a fresh copy of this example with no generated indices. It checks the initial restricted workspace, trusts the copy, selects demo → full → demo from the status bar, and compares twelve Find Usages queries with the hand-written oracle. It also verifies automatic refresh when a Java caller is added and then removed. Screenshots and the JSON report are written to a printed temporary directory, or to the output directory given as the first argument.

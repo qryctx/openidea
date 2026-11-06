@@ -101,6 +101,43 @@ fn spawn_reader(mut pipe: impl Read + Send + 'static, tx: mpsc::Sender<Event>, s
     });
 }
 
+/// Waits for one stdout line of an adb tracker and always reaps it, including on a match.
+/// Older adb may publish just one snapshot and exit; the caller can then request another.
+pub(crate) fn wait_for_line(
+    mut cmd: Command,
+    expected: &str,
+    deadline: Instant,
+    cancel: &CancellationToken,
+) -> IdeResult<bool> {
+    if cancel.is_cancelled() {
+        return Err(IdeError::cancelled());
+    }
+    prepare(&mut cmd);
+    let mut child = spawn(&mut cmd)?;
+    let (tx, rx) = mpsc::channel();
+    spawn_reader(child.stdout.take().unwrap(), tx.clone(), true);
+    spawn_reader(child.stderr.take().unwrap(), tx, false);
+    let mut stderr = String::new();
+    let result = loop {
+        if cancel.is_cancelled() {
+            break Err(IdeError::cancelled());
+        }
+        let wait = deadline.saturating_duration_since(Instant::now());
+        if wait.is_zero() {
+            break Ok(false);
+        }
+        match rx.recv_timeout(wait.min(Duration::from_millis(50))) {
+            Ok(Event::Line(true, line)) if line.trim() == expected => break Ok(true),
+            Ok(Event::Line(false, line)) => stderr = line,
+            Ok(_) | Err(mpsc::RecvTimeoutError::Timeout) => {}
+            Err(mpsc::RecvTimeoutError::Disconnected) if stderr.is_empty() => break Ok(false),
+            Err(mpsc::RecvTimeoutError::Disconnected) => break Err(IdeError::unavailable(stderr)),
+        }
+    };
+    terminate_tree(&mut child, KILL_GRACE);
+    result
+}
+
 fn flush<T>(batch: &mut Vec<T>, on_batch: &mut dyn FnMut(Vec<T>)) {
     if !batch.is_empty() {
         on_batch(std::mem::take(batch));

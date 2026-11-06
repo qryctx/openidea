@@ -2,29 +2,10 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFile, readdir, writeFile, access } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { adbExecutable, chooseDevice } from "./desktop-device.mjs";
 import { createInterface } from "node:readline/promises";
-
-async function adbExecutable() {
-  if (process.env.OPENIDEA_ADB) return process.env.OPENIDEA_ADB;
-  for (const sdk of [
-    process.env.ANDROID_HOME,
-    process.env.ANDROID_SDK_ROOT,
-    process.env.HOME && join(process.env.HOME, "Library/Android/sdk"),
-  ]) {
-    if (!sdk) continue;
-    const path = join(sdk, "platform-tools", process.platform === "win32" ? "adb.exe" : "adb");
-    if (
-      await access(path).then(
-        () => true,
-        () => false,
-      )
-    )
-      return path;
-  }
-  return "adb";
-}
 
 export async function verifyDeviceRun({ fixture, out, js, choose, until, capture }) {
   const serial = process.env.ANDROID_SERIAL;
@@ -53,24 +34,7 @@ export async function verifyDeviceRun({ fixture, out, js, choose, until, capture
           false,
         );
       }
-      // The real toolbar, not an invocation of the build/install IPC from the test.
-      await until(
-        () =>
-          js(`const d=document.querySelector("[data-android-device]");
-        return d && !d.disabled && Boolean(d.dataset.androidDevice || d.textContent.trim());`),
-        "Android device selector",
-      );
-      const selected = await js(`return document.querySelector("[data-android-device]").dataset.androidDevice;`);
-      if (selected !== serial) {
-        await js(`document.querySelector("[data-android-device]").click();`);
-        await until(
-          () =>
-            js(`const e=[...document.querySelectorAll('[role^="menuitem"]')].find(e=>e.textContent.includes(${JSON.stringify(serial)}));
-          if(e)e.click(); return Boolean(e);`),
-          "the selected physical device",
-        );
-      }
-      assert.equal(await js(`return document.querySelector("[data-android-device]").dataset.androidDevice;`), serial);
+      await chooseDevice(serial, js, until);
       const clickedAt = new Date().toISOString();
       await js(`window.__runStages=[];
         const stage=()=>{const val=document.querySelector("[data-android-run-stage]")?.dataset.androidRunStage;

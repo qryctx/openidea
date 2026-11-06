@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import clsx from "clsx";
+import { useAndroidVariants } from "@/platform/androidVariants";
 import { executeAction } from "@/platform/actions";
 import { useTx } from "@/platform/i18n";
 import { shortcutLabel } from "@/platform/keymap";
@@ -11,7 +12,8 @@ import styles from "./Run.module.css";
 export function AndroidRunWidget({ module, variant }: { module: string; variant: string }) {
   const tx = useTx();
   const chooserOpen = useRun((s) => s.chooserOpen);
-  const { devices, serial, devicesError, phase, error, result } = useAndroidRun();
+  const { devices, serial, devicesError, phase, mode, error, result } = useAndroidRun();
+  const indexReady = useAndroidVariants((s) => s.phase === "ready");
   const device = devices.find((d) => d.serial === serial);
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
@@ -22,7 +24,9 @@ export function AndroidRunWidget({ module, variant }: { module: string; variant:
     installing: tx("Installing…"),
     launching: tx("Launching…"),
     launched: tx("Launched"),
-    failed: tx("Run failed"),
+    attaching: tx("Attaching debugger…"),
+    debugging: tx("Debugging"),
+    failed: mode === "debug" ? tx("Debug failed") : tx("Run failed"),
   }[phase];
   const deviceRows: MenuItem[] = devices.map((d) => ({
     id: d.serial,
@@ -79,13 +83,24 @@ export function AndroidRunWidget({ module, variant }: { module: string; variant:
           disabled={busy || !device || device.state !== "device"}
           onClick={() => void executeAction("run.run")}
         />
+        <IconButton
+          icon="debug"
+          size="large"
+          iconSize={18}
+          className={styles.widgetButton}
+          title={tx`Debug '${variant}'`}
+          shortcut={shortcutLabel("run.debug")}
+          data-android-debug=""
+          disabled={busy || !indexReady || !device || device.state !== "device"}
+          onClick={() => void executeAction("run.debug")}
+        />
         {busy && (
           <IconButton
             icon="stop-filled"
             size="large"
             iconSize={16}
             className={styles.widgetButton}
-            title="Cancel Android Run"
+            title={mode === "debug" ? tx("Stop Android Debug") : tx("Cancel Android Run")}
             onClick={() => void executeAction("android.cancelRun")}
           />
         )}

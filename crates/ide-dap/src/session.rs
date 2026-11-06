@@ -156,6 +156,16 @@ impl Session {
         breakpoints: &[Breakpoint],
         temp_line: Option<u32>,
     ) -> Result<Vec<BreakpointState>, DapError> {
+        if self.kotlin_mirror.lock().as_ref().is_some_and(|m| m.outside_index(path)) {
+            return Ok(breakpoints
+                .iter()
+                .map(|b| BreakpointState {
+                    line: b.line,
+                    verified: false,
+                    message: Some("Source is outside the selected Android variant".to_owned()),
+                })
+                .collect());
+        }
         let enabled: Vec<usize> = (0..breakpoints.len()).filter(|&i| breakpoints[i].enabled).collect();
         let mut source_bps: Vec<Value> = enabled
             .iter()

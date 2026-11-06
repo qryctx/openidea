@@ -19,6 +19,8 @@ export const commands = {
 	androidIndexVariant: (request: RequestId, root: string, module: string, variant: string) => typedError<string, IdeError>(__TAURI_INVOKE("android_index_variant", { request, root, module, variant })),
 	/**  Builds exactly one selected AGP variant and deploys it to one explicit device. */
 	androidRunVariant: (request: RequestId, root: string, module: string, variant: string, serial: string, onProgress: Channel<AndroidRunStage>) => typedError<AndroidRunResult, IdeError>(__TAURI_INVOKE("android_run_variant", { request, root, module, variant, serial, onProgress })),
+	/**  Keeps the forward and waiting process owned by the originating project until cancellation. */
+	androidDebugVariant: (request: RequestId, root: string, module: string, variant: string, serial: string, onProgress: Channel<AndroidRunStage>, onReady: Channel<AndroidDebugTarget>) => typedError<null, IdeError>(__TAURI_INVOKE("android_debug_variant", { request, root, module, variant, serial, onProgress, onReady })),
 	recentProjects: () => __TAURI_INVOKE<RecentProject[]>("recent_projects"),
 	removeRecentProject: (path: string) => typedError<null, IdeError>(__TAURI_INVOKE("remove_recent_project", { path })),
 	/**  The welcome screen's project groups. */
@@ -1616,6 +1618,11 @@ export type AgentUsage = {
 	size: number,
 	/**  What the session has cost so far (ACP `usage_update.cost`), when the agent reports it. */
 	cost?: AgentCost | null,
+};
+
+export type AndroidDebugTarget = {
+	run: AndroidRunResult,
+	port: number,
 };
 
 /**  One entry of `adb devices -l`. */

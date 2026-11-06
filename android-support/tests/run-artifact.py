@@ -18,7 +18,7 @@ if tool is None:
     raise SystemExit("Install Android SDK Build Tools with aapt2 first")
 
 
-def artifact(project, module, variant, expected=None, failure=None, extra_args=()):
+def artifact(project, module, variant, expected=None, failure=None, extra_args=(), debuggable=True):
     result = subprocess.run([project / "gradlew", "-p", project, "-q", "--no-configuration-cache",
                              "--no-configure-on-demand", "--init-script", support / "run.gradle",
                              f"-PopenAndroidApplication={module}", f"-PopenAndroidVariant={variant}",
@@ -41,6 +41,8 @@ def artifact(project, module, variant, expected=None, failure=None, extra_args=(
     package = re.search(r"^package: name='([^']+)'", manifest, re.MULTILINE)
     if not package or package.group(1) != expected or "launchable-activity: name='dev.openide.sample.MainActivity'" not in manifest:
         raise ValueError(f"Unexpected installed identity or launcher in {relative}")
+    if model.get("debuggable") is not debuggable or ("application-debuggable" in manifest.splitlines()) != debuggable:
+        raise ValueError(f"Wrong packaged debug flag in {relative}")
     print(f"{module} / {variant} built {relative} ({expected})", flush=True)
     return relative
 
@@ -50,6 +52,7 @@ with tempfile.TemporaryDirectory(prefix="openandroid-run-") as scratch:
     shutil.copytree(fixture, project, ignore=ignore)
     for flavor in ("demo", "full"):
         artifact(project, ":app", flavor + "Debug", "dev.openide.sample." + flavor)
+    artifact(project, ":app", "demoRelease", "dev.openide.sample.demo", debuggable=False)
     artifact(project, ":contract", "demoDebug", failure="No enabled application variant")
     artifact(project, ":app", "notRealDebug", failure="No enabled application variant")
 

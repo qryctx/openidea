@@ -12,6 +12,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val variant = BuildConfig.FLAVOR + BuildConfig.BUILD_TYPE.replaceFirstChar { it.uppercaseChar() }
+        Log.i("OpenAndroidStudioRun", "before greeting variant=$variant package=$packageName")
         val greeting = flavorGreeting()
         val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL

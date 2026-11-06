@@ -11,7 +11,7 @@ mod model;
 mod process;
 mod run;
 
-pub use run::{LaunchedApp, ensure_device, install_apk, launch_app};
+pub use run::{DebugLaunch, LaunchedApp, ensure_device, install_apk, launch_app, launch_debug};
 
 pub use model::*;
 

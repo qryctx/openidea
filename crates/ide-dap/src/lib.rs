@@ -802,7 +802,13 @@ impl DebugManager {
                 .and_then(Value::as_str)
                 .map(PathBuf::from)
                 .unwrap_or_else(|| s.spec.cwd.clone());
-            let mirror = tokio::task::spawn_blocking(move || kotlin::SourceMirror::create(&project))
+            let files = arguments
+                .as_object_mut()
+                .and_then(|a| a.remove("__androidVariantSources"))
+                .map(serde_json::from_value::<Vec<PathBuf>>)
+                .transpose()
+                .map_err(|e| IdeError::invalid(e.to_string()))?;
+            let mirror = tokio::task::spawn_blocking(move || kotlin::SourceMirror::from_sources(&project, files))
                 .await
                 .map_err(|e| IdeError::internal(e.to_string()))??;
             arguments["projectRoot"] = json!(mirror.root());

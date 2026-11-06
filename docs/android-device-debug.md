@@ -1,0 +1,15 @@
+# 在 Android 真机上打启动断点
+
+1. 打开并信任[双模块示例](../examples/android-variants)，连接已授权 USB 调试的手机。在状态栏选择 `:app · demoDebug`，在工具栏选择该手机。
+2. 打开 `libraries/contracts/src/main/java/dev/openide/sample/contract/JavaGreeting.java`，点击 `return "Hello from Java";` 所在行的行号设置断点。
+3. 点击工具栏的 **Debug**。首次需要安装调试适配器时，按 IDE 的 Install 提示安装 **Kotlin Debug Adapter**，完成后再次点 Debug。可在 Settings → Languages & Frameworks → Language Servers 中查看安装状态。同一适配器处理 Java 和 Kotlin。
+4. 调试器停下后，在 **Debug → Threads & Variables** 查看调用栈和当前源码行。点 **Resume** 完成页面启动，点 **Stop** 结束会话。去掉 Java 断点并切到 `fullDebug`。
+5. 打开 `libraries/contracts/src/main/kotlin/dev/openide/sample/contract/KotlinGreeting.kt`，在 `val greeting = "Hello from Kotlin"` 上设断点，点 **Debug**。停下后点 **Step Over**，检查当前行变成 `return greeting`，局部变量 `greeting` 显示 `Hello from Kotlin`。调用者应来自 `app/src/full`。
+
+Debug 需要可调试的单一 APK、可用的 JDK，以及支持 `am start --suspend` 的 Android 系统。本版使用设备的启动挂起能力，让调试器在应用执行启动代码前绑定断点。IDE 只映射选中应用模块和变体的已索引 Java/Kotlin 源文件。断点、调用栈和单步沿用桌面调试窗口。停止调试会清理本次会话的端口转发，并终止本次启动的目标进程。真机调试覆盖应用的托管进程。[Android 官方调试说明](https://developer.android.com/studio/debug) · [Kotlin Debug Adapter 源码与许可](https://github.com/fwcd/kotlin-debug-adapter)
+
+在本仓库运行 `pnpm dev:app`，从另一个终端执行以下命令可复验两个变体。在输出目录中检查逐次 JSON 和断点、单步截图。驱动通过桌面 Debug 按钮启动，独立读取手机上的 PID、端口和应用日志。
+
+```sh
+ANDROID_SERIAL=<设备序列号> node android-support/verify-desktop.mjs /tmp/openandroidstudio-debug --device-debug
+```

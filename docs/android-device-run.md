@@ -33,4 +33,4 @@ ANDROID_SERIAL=<设备序列号> node android-support/verify-desktop.mjs /tmp/op
 - Run 使用 AGP 提供的单一通用 APK，校验 APK manifest 的包名后再安装。带过滤条件的 split APK、动态功能模块和 AAB 部署尚待支持。
 - 更新安装保留应用数据。签名冲突会报告安装失败；用户可以据此选择处理现有安装。
 - 切换应用模块、变体、设备或关闭工程会结束旧 Run 的日志订阅。手动打开的整机 Logcat 可以独立使用。
-- 自动 Logcat 跟随这次启动的 PID。应用重启并换 PID 后，再点 Run 即可重新连接。目前覆盖前台启动与日志；断点调试尚待接入。
+- 自动 Logcat 跟随这次启动的 PID。应用重启并换 PID 后，再点 Run 即可重新连接。需要在启动时停住或单步查看代码时，使用工具栏的 Debug。[Android 真机 Debug](android-device-debug.md)

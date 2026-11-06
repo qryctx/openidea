@@ -172,6 +172,8 @@ pub struct AndroidRunArtifact {
     pub module: String,
     pub variant: String,
     pub application_id: String,
+    #[serde(default)]
+    pub debuggable: bool,
     pub apk: PathBuf,
 }
 
@@ -215,6 +217,33 @@ pub fn build_run_artifact(
     Ok(artifact)
 }
 
+fn snapshot_dir(module: &str) -> String {
+    let key: String = module.bytes().map(|b| format!("{b:02x}")).collect();
+    format!("build/openandroidstudio/variants/{key}")
+}
+
+/// Exact source files seen by AGP/lint for this module and variant, including its Android libraries.
+pub fn debug_sources(root: &Path, module: &str, variant: &str) -> IdeResult<Vec<PathBuf>> {
+    check_selection(module, variant)?;
+    let root = dunce::canonicalize(root)?;
+    let path = root.join(snapshot_dir(module)).join(format!("{variant}.json"));
+    if !path.is_file() || dunce::canonicalize(&path)? != path {
+        return Err(IdeError::unavailable("Sync the selected Android variant before debugging"));
+    }
+    validate_snapshot(&path, module, variant)?
+        .into_keys()
+        .map(|relative| {
+            let path = root.join(relative);
+            if !path.is_file() || !path.starts_with(&root) || dunce::canonicalize(&path)? != path {
+                return Err(IdeError::invalid(
+                    "The Android index contains an invalid source path; sync the variant again",
+                ));
+            }
+            Ok(path)
+        })
+        .collect()
+}
+
 pub fn index_variant(
     root: &Path,
     cache: &Path,
@@ -224,8 +253,7 @@ pub fn index_variant(
     cancel: &CancellationToken,
 ) -> IdeResult<String> {
     check_selection(module, variant)?;
-    let key: String = module.bytes().map(|b| format!("{b:02x}")).collect();
-    let relative_dir = format!("build/openandroidstudio/variants/{key}");
+    let relative_dir = snapshot_dir(module);
     let relative = format!("{relative_dir}/{variant}.json");
     let canonical = root.join(&relative);
     if cancel.is_cancelled() {
@@ -287,12 +315,11 @@ fn existing_snapshot(path: &Path, module: &str, variant: &str) -> IdeResult<bool
     }
 }
 
-fn validate_snapshot(path: &Path, module: &str, variant: &str) -> IdeResult<()> {
+fn validate_snapshot(path: &Path, module: &str, variant: &str) -> IdeResult<BTreeMap<String, serde::de::IgnoredAny>> {
     #[derive(Deserialize)]
     struct Header {
         schema: u32,
-        #[serde(rename = "files")]
-        _files: BTreeMap<String, serde::de::IgnoredAny>,
+        files: BTreeMap<String, serde::de::IgnoredAny>,
         #[serde(rename = "declarations")]
         _declarations: Vec<serde::de::IgnoredAny>,
         #[serde(rename = "references")]
@@ -305,13 +332,37 @@ fn validate_snapshot(path: &Path, module: &str, variant: &str) -> IdeResult<()> 
     if header.schema != 1 || header.application != module || header.variant != variant {
         return Err(IdeError::invalid("Android index does not match the requested application and variant"));
     }
-    Ok(())
+    Ok(header.files)
 }
 
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn debugger_reads_only_the_requested_project_local_source_set() {
+        let dir = tempfile::tempdir().unwrap();
+        let project = dunce::canonicalize(dir.path()).unwrap().join("project");
+        let snapshots = project.join(snapshot_dir(":app"));
+        fs::create_dir_all(&snapshots).unwrap();
+        for name in ["demoDebug", "fullDebug"] {
+            let file = format!("{name}.kt");
+            fs::write(project.join(&file), "package demo").unwrap();
+            let snapshot = serde_json::json!({"schema": 1, "application": ":app", "variant": name,
+                "files": {&file: "digest"}, "declarations": [], "references": []});
+            fs::write(snapshots.join(format!("{name}.json")), snapshot.to_string()).unwrap();
+        }
+        for name in ["demoDebug", "fullDebug"] {
+            assert_eq!(debug_sources(&project, ":app", name).unwrap(), [project.join(format!("{name}.kt"))]);
+        }
+        let outside = project.parent().unwrap().join("outside.kt");
+        fs::write(&outside, "package forbidden").unwrap();
+        let snapshot = serde_json::json!({"schema": 1, "application": ":app", "variant": "fullDebug",
+            "files": {"../outside.kt": "digest"}, "declarations": [], "references": []});
+        fs::write(snapshots.join("fullDebug.json"), snapshot.to_string()).unwrap();
+        assert!(debug_sources(&project, ":app", "fullDebug").is_err());
+    }
 
     fn wrapper_script(root: &Path, script: &str) {
         fs::write(wrapper(root), format!("#!/bin/sh\nset -eu\n{script}\n")).unwrap();

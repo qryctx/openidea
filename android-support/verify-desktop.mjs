@@ -26,6 +26,8 @@ console.log("Opening clean sample", fixture);
 
 const oracle = JSON.parse(await readFile(join(fixture, "expected-usages.json"), "utf8"));
 const deviceRun = process.argv.includes("--device-run");
+const deviceDebug = process.argv.includes("--device-debug");
+assert.ok(!(deviceRun && deviceDebug), "Choose a single verification mode");
 const out =
   process.argv.slice(2).find((arg) => !arg.startsWith("--")) ??
   (await mkdtemp(join(tmpdir(), "openidea-android-desktop-")));
@@ -79,7 +81,10 @@ let windowLabel;
 const js = (script) => rpc("execute_js", { script, windowLabel });
 
 async function fixtureWindow() {
-  const state = await backend();
+  const state = await until(async () => {
+    const snapshot = await backend();
+    return snapshot.windows.some((w) => w.label === "main" || w.title.includes(basename(fixture))) ? snapshot : null;
+  }, "the isolated development app's project window");
   assert.equal(state.app.identifier, status.identifier);
   const open = state.windows.find((w) => w.title.includes(basename(fixture)));
   const main = state.windows.find((w) => w.label === "main");
@@ -439,9 +444,11 @@ try {
   );
   await missing(indexRoot);
   await trustFixture();
-  if (deviceRun) {
-    const { verifyDeviceRun } = await import("./verify-device-run.mjs");
-    await verifyDeviceRun({
+  if (deviceRun || deviceDebug) {
+    const verify = deviceDebug
+      ? (await import("./verify-device-debug.mjs")).verifyDeviceDebug
+      : (await import("./verify-device-run.mjs")).verifyDeviceRun;
+    await verify({
       fixture,
       out,
       js,

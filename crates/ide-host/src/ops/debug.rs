@@ -69,6 +69,27 @@ pub async fn debug_start(host: &Host, window: &str, config: LaunchConfig) -> Ide
             .transpose()
             .map_err(|e| ide_core::IdeError::invalid(e.to_string()))?
             .unwrap_or_else(|| serde_json::json!({}));
+        let map = extra.as_object_mut().ok_or_else(|| ide_core::IdeError::invalid("Invalid debugger arguments"))?;
+        map.remove("__androidVariantSources");
+        if let Some(target) = map.remove("openAndroidTarget") {
+            #[derive(serde::Deserialize)]
+            struct Target {
+                module: String,
+                variant: String,
+            }
+            let target: Target =
+                serde_json::from_value(target).map_err(|e| ide_core::IdeError::invalid(e.to_string()))?;
+            let project = host.project(window)?;
+            let root = project.root.clone();
+            if config.request != "attach" || config.cwd.as_deref().map(std::path::Path::new) != Some(root.as_path()) {
+                return Err(ide_core::IdeError::invalid("Android Debug requires the current project"));
+            }
+            extra["projectRoot"] = serde_json::json!(root);
+            let sources = host
+                .blocking(move || ide_build::android::debug_sources(&root, &target.module, &target.variant))
+                .await?;
+            extra["__androidVariantSources"] = serde_json::json!(sources);
+        }
         extra["__adapterJavaHome"] = serde_json::json!(runtime.home);
         config.extra_json = Some(extra.to_string());
     }

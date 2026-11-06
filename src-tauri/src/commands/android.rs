@@ -2,7 +2,7 @@
 
 use crate::state::AppState;
 use ide_android::{AndroidDevice, LogcatLine};
-use ide_core::{IdeError, IdeResult, RequestId};
+use ide_core::{CancellationToken, IdeError, IdeResult, RequestId};
 use tauri::State;
 use tauri::ipc::Channel;
 
@@ -59,43 +59,51 @@ async fn sync<T: Send + 'static>(
     + Send
     + 'static,
 ) -> IdeResult<T> {
+    let cancel = state.begin_project_request(window.label(), request);
+    let result = with_project(state, window, root, cancel, not_android, work).await;
+    state.end_request(request);
+    result
+}
+
+async fn with_project<T: Send + 'static>(
+    state: &AppState,
+    window: &Window,
+    root: String,
+    cancel: CancellationToken,
+    not_android: IdeResult<T>,
+    work: impl FnOnce(&Path, &Path, &BTreeMap<String, String>, &CancellationToken) -> IdeResult<T> + Send + 'static,
+) -> IdeResult<T> {
     let label = window.label();
     let project = state.project(label)?;
     project.require_trust()?;
     if project.light || project.root != Path::new(&root) || state.remote_dev.get(label).is_some() {
-        return Err(IdeError::invalid("Android sync requires the currently open local project"));
+        return Err(IdeError::invalid("Android deployment requires the currently open local project"));
     }
-    let cancel = state.begin_project_request(label, request);
-    let result = async {
-        let _guard = tokio::select! {
-            _ = cancel.cancelled() => return Err(IdeError::cancelled()),
-            lock = GRADLE.lock() => lock,
-        };
-        if state.remote_dev.get(label).is_some() || !std::sync::Arc::ptr_eq(&project, &state.project(label)?) {
+    let _guard = tokio::select! {
+        _ = cancel.cancelled() => return Err(IdeError::cancelled()),
+        lock = GRADLE.lock() => lock,
+    };
+    if state.remote_dev.get(label).is_some() || !std::sync::Arc::ptr_eq(&project, &state.project(label)?) {
+        return Err(IdeError::cancelled());
+    }
+    project.require_trust()?;
+    blocking(move || {
+        if cancel.is_cancelled() {
             return Err(IdeError::cancelled());
         }
-        project.require_trust()?;
-        blocking(move || {
-            if cancel.is_cancelled() {
-                return Err(IdeError::cancelled());
-            }
-            if !android::is_android_project(&project.root, &cancel)? {
-                return not_android;
-            }
-            let mut env = ide_sdk::apply::android_gradle_env(&project.root, &project.settings.effective());
-            if std::env::var_os("ANDROID_HOME").is_none()
-                && std::env::var_os("ANDROID_SDK_ROOT").is_none()
-                && let Some(sdk) = ide_android::installed_sdk()
-            {
-                env.insert("ANDROID_HOME".into(), sdk.to_string_lossy().into_owned());
-            }
-            work(&project.root, &project.cache_dir, &env, &cancel)
-        })
-        .await
-    }
-    .await;
-    state.end_request(request);
-    result
+        if !android::is_android_project(&project.root, &cancel)? {
+            return not_android;
+        }
+        let mut env = ide_sdk::apply::android_gradle_env(&project.root, &project.settings.effective());
+        if std::env::var_os("ANDROID_HOME").is_none()
+            && std::env::var_os("ANDROID_SDK_ROOT").is_none()
+            && let Some(sdk) = ide_android::installed_sdk()
+        {
+            env.insert("ANDROID_HOME".into(), sdk.to_string_lossy().into_owned());
+        }
+        work(&project.root, &project.cache_dir, &env, &cancel)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -161,25 +169,154 @@ pub async fn android_run_variant(
     serial: String,
     on_progress: Channel<AndroidRunStage>,
 ) -> IdeResult<AndroidRunResult> {
+    let devices = state.android_debug.clone();
+    let deploy = Deploy { serial, module, variant, on_progress, debug: false };
     let missing = IdeError::invalid("Expected an Android Gradle project with its own wrapper");
     sync(&state, &window, request, root, Err(missing), move |root, cache, env, cancel| {
-        ide_android::ensure_device(&serial, cancel)?;
-        let _ = on_progress.send(AndroidRunStage::Building);
-        let artifact = android::build_run_artifact(root, cache, &module, &variant, env, cancel)?;
-        let _ = on_progress.send(AndroidRunStage::Installing);
-        ide_android::install_apk(&serial, &root.join(&artifact.apk), &artifact.application_id, cancel)?;
-        let _ = on_progress.send(AndroidRunStage::Launching);
-        let app = ide_android::launch_app(&serial, &artifact.application_id, cancel)?;
-        Ok(AndroidRunResult {
-            serial,
-            module,
-            variant,
-            application_id: artifact.application_id,
-            apk: artifact.apk.to_string_lossy().replace('\\', "/"),
-            component: app.component,
-            pid: app.pid,
-            log_since: app.log_since,
-        })
+        devices.check_free(&deploy.serial)?;
+        let artifact = deploy.install(root, cache, env, cancel)?;
+        let app = ide_android::launch_app(&deploy.serial, &artifact.application_id, cancel)?;
+        Ok(deploy.result(artifact, &app))
     })
     .await
+}
+
+struct Deploy {
+    serial: String,
+    module: String,
+    variant: String,
+    on_progress: Channel<AndroidRunStage>,
+    debug: bool,
+}
+
+impl Deploy {
+    fn install(
+        &self,
+        root: &Path,
+        cache: &Path,
+        env: &BTreeMap<String, String>,
+        cancel: &CancellationToken,
+    ) -> IdeResult<android::AndroidRunArtifact> {
+        ide_android::ensure_device(&self.serial, cancel)?;
+        let _ = self.on_progress.send(AndroidRunStage::Building);
+        let artifact = android::build_run_artifact(root, cache, &self.module, &self.variant, env, cancel)?;
+        if self.debug && !artifact.debuggable {
+            return Err(IdeError::invalid(format!(
+                "{} / {} produces an APK that is not debuggable",
+                self.module, self.variant
+            )));
+        }
+        let _ = self.on_progress.send(AndroidRunStage::Installing);
+        ide_android::install_apk(&self.serial, &root.join(&artifact.apk), &artifact.application_id, cancel)?;
+        let _ = self.on_progress.send(AndroidRunStage::Launching);
+        Ok(artifact)
+    }
+
+    fn result(self, artifact: android::AndroidRunArtifact, app: &ide_android::LaunchedApp) -> AndroidRunResult {
+        AndroidRunResult {
+            serial: self.serial,
+            module: self.module,
+            variant: self.variant,
+            application_id: artifact.application_id,
+            apk: artifact.apk.to_string_lossy().replace('\\', "/"),
+            component: app.component.clone(),
+            pid: app.pid,
+            log_since: app.log_since.clone(),
+        }
+    }
+}
+
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AndroidDebugTarget {
+    run: AndroidRunResult,
+    port: u16,
+}
+
+/// Keeps the forward and waiting process owned by the originating project until cancellation.
+#[tauri::command]
+#[specta::specta]
+#[allow(clippy::too_many_arguments)]
+pub async fn android_debug_variant(
+    window: Window,
+    state: State<'_, AppState>,
+    request: RequestId,
+    root: String,
+    module: String,
+    variant: String,
+    serial: String,
+    on_progress: Channel<AndroidRunStage>,
+    on_ready: Channel<AndroidDebugTarget>,
+) -> IdeResult<()> {
+    let cancel = state.begin_project_request(window.label(), request);
+    let result = async {
+        let _lease = state.android_debug.reserve(&serial, &cancel)?;
+        let deploy = Deploy { serial, module, variant, on_progress, debug: true };
+        let missing = IdeError::invalid("Expected an Android Gradle project with its own wrapper");
+        let (session, ready) =
+            with_project(&state, &window, root, cancel.clone(), Err(missing), move |root, cache, env, cancel| {
+                let artifact = deploy.install(root, cache, env, cancel)?;
+                let session = ide_android::launch_debug(&deploy.serial, &artifact.application_id, cancel)?;
+                let ready = AndroidDebugTarget { run: deploy.result(artifact, &session.app), port: session.port() };
+                Ok((session, ready))
+            })
+            .await?;
+        if !cancel.is_cancelled() && on_ready.send(ready).is_ok() {
+            cancel.cancelled().await;
+        }
+        blocking(move || session.close()).await
+    }
+    .await;
+    state.end_request(request);
+    result
+}
+
+#[derive(Default)]
+pub(crate) struct DebugSessions {
+    devices: parking_lot::Mutex<BTreeMap<String, CancellationToken>>,
+    released: parking_lot::Condvar,
+}
+
+impl DebugSessions {
+    fn check_free(&self, serial: &str) -> IdeResult<()> {
+        if self.devices.lock().contains_key(serial) {
+            return Err(IdeError::invalid("Stop the active Android debugger on this device first"));
+        }
+        Ok(())
+    }
+
+    fn reserve<'a>(&'a self, serial: &str, cancel: &CancellationToken) -> IdeResult<DebugDevice<'a>> {
+        let mut devices = self.devices.lock();
+        if devices.contains_key(serial) {
+            return Err(IdeError::invalid("Stop the active Android debugger on this device first"));
+        }
+        devices.insert(serial.into(), cancel.clone());
+        Ok(DebugDevice { sessions: self, serial: serial.into() })
+    }
+
+    // App termination can precede WebView disposal. Give outstanding ADB cleanup time to finish.
+    pub(crate) fn shutdown(&self) {
+        let mut devices = self.devices.lock();
+        for cancel in devices.values() {
+            cancel.cancel();
+        }
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !devices.is_empty() {
+            if self.released.wait_until(&mut devices, deadline).timed_out() {
+                tracing::warn!("Android debugger cleanup did not finish before app exit");
+                break;
+            }
+        }
+    }
+}
+
+struct DebugDevice<'a> {
+    sessions: &'a DebugSessions,
+    serial: String,
+}
+impl Drop for DebugDevice<'_> {
+    fn drop(&mut self) {
+        self.sessions.devices.lock().remove(&self.serial);
+        self.sessions.released.notify_all();
+    }
 }

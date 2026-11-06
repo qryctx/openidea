@@ -16,6 +16,7 @@ import {
   publishContext,
   rerunSession,
   resetSessions,
+  resumeExecution,
   startSession,
   stopSession,
   useDebug,
@@ -92,6 +93,56 @@ it("removes terminated summaries when a subsequent debug start prunes their sour
   );
   expect(useDebugRunSessions.getState().serviceSessions.map((s) => s.id)).toEqual([42]);
 });
+it("counts Android breakpoint pauses per thread across startup, resume and step without dropping events", async () => {
+  const android = 17422;
+  const jvm = 17423;
+  const launch = {
+    name: ":app · fullDebug",
+    adapter: "kotlin-debug-adapter",
+    request: "attach",
+    program: null,
+    args: [],
+    cwd: "/project",
+    env: {},
+    extraJson: null,
+  };
+  const stop = (id: number, threadId: number, reason = "breakpoint") =>
+    handleDebugEvent(id, { kind: "stopped", reason, threadId, description: null, allThreadsStopped: false });
+  const hits = (id: number) => useDebug.getState().sessions[id]?.hits;
+  let early: { hits: number | undefined; events: number } | undefined;
+  ipc.debugStart.mockImplementationOnce(async () => {
+    handleDebugEvent(android, { kind: "started", name: launch.name, adapter: launch.adapter, parent: null });
+    const sequence = useDebug.getState().stopSeq;
+    stop(android, 1);
+    stop(android, 1);
+    early = { hits: hits(android), events: useDebug.getState().stopSeq - sequence };
+    return { status: "ok", data: android };
+  });
+  await startSession(launch, { attachSignal: new AbortController().signal, rerunnable: false });
+  expect(early).toEqual({ hits: 1, events: 2 });
+  stop(android, 2);
+  stop(android, 1);
+  expect(hits(android)).toBe(2);
+  // The second thread remains suspended; starting thread one's next step begins another pause interval.
+  await resumeExecution(android, async () => {
+    stop(android, 1, "step");
+  });
+  stop(android, 1);
+  stop(android, 1);
+  expect(hits(android)).toBe(3);
+  handleDebugEvent(android, { kind: "continued", threadId: 2, allThreadsContinued: false });
+  stop(android, 2);
+  expect(hits(android)).toBe(4);
+  handleDebugEvent(android, { kind: "continued", threadId: 1, allThreadsContinued: true });
+  stop(android, 1);
+  expect(hits(android)).toBe(5);
+
+  adoptSession(jvm, { adapter: launch.adapter });
+  stop(jvm, 1);
+  stop(jvm, 1);
+  expect(hits(jvm)).toBe(2);
+});
+
 const config: RunConfig = {
   id: "node:server",
   name: "server",

@@ -57,6 +57,8 @@ export interface DebugSession {
   selectedFrame: number | null;
   /** Breakpoint hits in this session. */
   hits: number;
+  /** fwcd can send multiple breakpoint events for one Android thread suspension. */
+  androidBreakpointThreads?: number[];
   exitCode: number | null;
   /** What the adapter supports (fetched after start). */
   caps: DebugCapabilities | null;
@@ -185,7 +187,8 @@ function blank(id: DebugSessionId, p: Partial<DebugSession> = {}): DebugSession 
 // Sessions this window owns. The backend sends a session's events only to the window
 // that started it; as a second line of defence, events of other sessions are dropped.
 /** `debugStart` calls in flight: their root session's id is not known yet. */
-let pendingStarts = 0;
+type PendingStart = { name: string; adapter: string; android: boolean };
+const pendingStarts = new Set<PendingStart>();
 /** Sessions adopted while a start was in flight, not yet confirmed by its result. */
 const provisional = new Set<DebugSessionId>();
 /** Every session id this window has owned (late events of dropped sessions are ignored). */
@@ -221,19 +224,26 @@ function ownSession(id: DebugSessionId, event: DebugEvent): DebugSession | null 
     if (!st.sessions[event.parent]) return null;
     return adoptSession(id, { name: event.name, adapter: event.adapter, parent: event.parent });
   }
-  if (pendingStarts === 0) return null;
+  if (!pendingStarts.size) return null;
   provisional.add(id);
-  return event.kind === "started" ? adoptSession(id, { name: event.name, adapter: event.adapter }) : adoptSession(id);
+  if (event.kind !== "started") return adoptSession(id);
+  // The native Started event precedes adapter events, including an early startup breakpoint.
+  const matches = [...pendingStarts].filter((start) => start.name === event.name && start.adapter === event.adapter);
+  return adoptSession(id, {
+    name: event.name,
+    adapter: event.adapter,
+    androidBreakpointThreads: matches.length && matches.every((start) => start.android) ? [] : undefined,
+  });
 }
 
 /**
  * A start finished (`id` on success): sessions no start claimed are failed starts' leftovers,
  * kept as terminated or, with `discard`, removed.
  */
-function settleStart(id: DebugSessionId | null, discard = false) {
-  pendingStarts = Math.max(0, pendingStarts - 1);
+function settleStart(start: PendingStart, id: DebugSessionId | null, discard = false) {
+  pendingStarts.delete(start);
   if (id != null) provisional.delete(id);
-  if (pendingStarts > 0) return;
+  if (pendingStarts.size) return;
   const leftovers = [...provisional];
   provisional.clear();
   if (discard) {
@@ -497,6 +507,8 @@ export async function startSession(
   options: {
     runConfig?: RunConfig;
     preparation?: { id: DebugSessionId; signal: AbortSignal };
+    /** Android owns a short-lived forwarded port that must never be reused for a retry. */
+    attachSignal?: AbortSignal;
     /** A process started for this session (e.g. Maven with a JDWP agent): Stop ends it too. */
     process?: RunId | null;
     /** Rerun repeats the launch (false for attaching to a process that is gone afterwards). */
@@ -508,6 +520,7 @@ export async function startSession(
     return null;
   }
   // Attaching to a JVM that may be gone: the finished session stays until the attach succeeds.
+  const signal = options.preparation?.signal ?? options.attachSignal;
   const afterDetach = justDetached(options.process);
   const previousActive = useDebug.getState().active;
   if (!afterDetach) dropFinished();
@@ -517,18 +530,19 @@ export async function startSession(
     // Workbench not ready (tests).
   }
   const startedAt = Date.now();
-  pendingStarts++;
+  const start = { name: launch.name, adapter: launch.adapter, android: options.attachSignal !== undefined };
+  pendingStarts.add(start);
   try {
     await flushBreakpoints();
-    options.preparation?.signal.throwIfAborted();
+    signal?.throwIfAborted();
     const adapterStarted = performance.now();
     const id = await call(commands.debugStart(launch));
     console.info("Debug adapter started", { name: launch.name, ms: performance.now() - adapterStarted });
     owned.add(id);
     if (afterDetach) dropFinished();
-    if (options.preparation?.signal.aborted) {
+    if (signal?.aborted) {
       await call(commands.debugStop(id)).catch(() => undefined);
-      settleStart(id);
+      settleStart(start, id);
       if (useDebug.getState().sessions[id]) markTerminated(id);
       return null;
     }
@@ -554,6 +568,7 @@ export async function startSession(
             runConfig: options.runConfig,
             startedAt: preparation?.startedAt ?? startedAt,
             adapter: launch.adapter,
+            androidBreakpointThreads: start.android ? (cur.androidBreakpointThreads ?? []) : undefined,
             launch: options.rerunnable === false ? null : launch,
             process: options.process ?? null,
             status: cur.status === "starting" ? "running" : cur.status,
@@ -562,7 +577,7 @@ export async function startSession(
         active: id,
       };
     });
-    settleStart(id);
+    settleStart(start, id);
     publishContext();
     void refreshExceptionFilters();
     void loadCapabilities(id);
@@ -570,7 +585,7 @@ export async function startSession(
     void syncSpecial();
     return id;
   } catch (e) {
-    settleStart(null, afterDetach);
+    settleStart(start, null, afterDetach);
     if (afterDetach) {
       // The JVM that announced the port ended as its previous debugger detached.
       console.info("Debugger not attached: the JVM is gone", { name: launch.name, error: e });
@@ -580,7 +595,7 @@ export async function startSession(
       publishContext();
       return null;
     }
-    if (options.preparation?.signal.aborted || isCancelled(e)) return null;
+    if (signal?.aborted || isCancelled(e)) return null;
     if (options.preparation)
       appendConsole(options.preparation.id, "stderr", (e instanceof Error ? e.message : String(e)) + "\n");
     const missing = missingAdapter(launch.adapter, e);
@@ -594,8 +609,11 @@ export async function startSession(
         sticky: true,
         actions: [
           {
-            label: "Install and Debug",
-            run: () => void executeAction("tools.install", missing.tool).then(() => startSession(launch, options)),
+            label: options.attachSignal ? "Install" : "Install and Debug",
+            run: () =>
+              void executeAction("tools.install", missing.tool).then(() => {
+                if (!options.attachSignal) void startSession(launch, options);
+              }),
           },
         ],
       });
@@ -865,7 +883,15 @@ export async function resumeExecution(id: DebugSessionId, request: () => Promise
   const before = useDebug.getState().sessions[id];
   if (!before || before.status !== "paused") return;
   const frames: StackFrame[] = [];
-  patch(id, { status: "running", frames, selectedFrame: null, stoppedThread: null });
+  patch(id, {
+    status: "running",
+    frames,
+    selectedFrame: null,
+    stoppedThread: null,
+    androidBreakpointThreads: before.androidBreakpointThreads?.filter(
+      (t) => t !== (before.selectedThread ?? before.stoppedThread),
+    ),
+  });
   updateExecutionPoint();
   try {
     await request();
@@ -878,6 +904,7 @@ export async function resumeExecution(id: DebugSessionId, request: () => Promise
         frames: before.frames,
         selectedFrame: before.selectedFrame,
         stoppedThread: before.stoppedThread,
+        androidBreakpointThreads: before.androidBreakpointThreads,
       });
       updateExecutionPoint();
       if (before.selectedFrame != null) void loadLocals(id, before.selectedFrame);
@@ -979,15 +1006,20 @@ export function handleDebugEvent(id: DebugSessionId, event: DebugEvent) {
       break;
     case "stopped": {
       const isBp = event.reason === "breakpoint" || event.reason === "function breakpoint";
+      const threads = s.androidBreakpointThreads;
+      const duplicate = isBp && threads?.includes(event.threadId);
       patch(id, {
         status: "paused",
+        androidBreakpointThreads:
+          threads &&
+          (isBp ? (duplicate ? threads : [...threads, event.threadId]) : threads.filter((t) => t !== event.threadId)),
         stoppedThread: event.threadId,
         selectedThread: event.threadId,
         stopReason: event.reason,
         stopDescription: event.description,
         frames: [],
         selectedFrame: null,
-        hits: s.hits + (isBp ? 1 : 0),
+        hits: s.hits + (isBp && !duplicate ? 1 : 0),
       });
       useDebug.setState((st) => ({ active: id, stopSeq: st.stopSeq + 1 }));
       publishContext();
@@ -1006,6 +1038,12 @@ export function handleDebugEvent(id: DebugSessionId, event: DebugEvent) {
     case "continued": {
       const cur = useDebug.getState().sessions[id]!;
       if (cur.status === "terminated") break;
+      if (cur.androidBreakpointThreads)
+        patch(id, {
+          androidBreakpointThreads: event.allThreadsContinued
+            ? []
+            : cur.androidBreakpointThreads.filter((t) => t !== event.threadId),
+        });
       if (!event.allThreadsContinued && event.threadId !== (cur.selectedThread ?? cur.stoppedThread)) break;
       patch(id, {
         status: "running",

@@ -25,7 +25,12 @@ case "$1 ${2:-}" in
   'shell cmd') printf '%s\n' '  ActivityInfo:' '    name=sample.Launcher$Alias' '    packageName=dev.sample.demo' '    processName=dev.sample.demo:ui' ;;
   'shell date') echo 1800000000 ;;
   'shell am') if test -f "$OPENIDEA_TEST_RUN_ADB/am-error"; then echo "Error: start refused" >&2; fi; echo 'Status: ok' ;;
-  'shell pidof') test "$3" = 'dev.sample.demo:ui'; echo 431 ;;
+  'shell pidof') test "$3" = 'dev.sample.demo:ui'; cat "$OPENIDEA_TEST_RUN_ADB/pid" ;;
+  'shell dumpsys') test "$3" = package && test "$4" = dev.sample.demo; cat "$OPENIDEA_TEST_RUN_ADB/flags" ;;
+  'jdwp ') echo 1431; cat "$OPENIDEA_TEST_RUN_ADB/pid"; echo; sleep 30 ;;
+  'forward --no-rebind') test "$3" = tcp:0 && test "$4" = jdwp:431; echo 'selected tcp:36381 jdwp:431' > "$OPENIDEA_TEST_RUN_ADB/mapping"; echo 36381 ;;
+  'forward --list') cat "$OPENIDEA_TEST_RUN_ADB/mapping" ;;
+  'forward --remove') test "$3" = tcp:36381; rm "$OPENIDEA_TEST_RUN_ADB/mapping" ;;
   'logcat -v') echo '11-06 10:00:00.000  432  432 I Other   : namesake'; echo '11-06 10:00:00.000  431  432 I Sample  : startup' ;;
   *) exit 3 ;;
 esac
@@ -44,6 +49,7 @@ fn exercise(dir: &Path) {
     let cancel = CancellationToken::new();
     let apk = dir.join("example.apk");
     fs::write(&apk, "sample").unwrap();
+    fs::write(dir.join("pid"), "431").unwrap();
     ide_android::ensure_device("selected", &cancel).unwrap();
     ide_android::install_apk("selected", &apk, "dev.sample.demo", &cancel).unwrap();
     let app = ide_android::launch_app("selected", "dev.sample.demo", &cancel).unwrap();
@@ -58,6 +64,29 @@ fn exercise(dir: &Path) {
     assert_eq!(lines.len(), 1);
     assert_eq!(lines[0].pid, 431);
     assert_eq!(lines[0].message, "startup");
+    // A running debug deployment must own only its suspended process and dynamically assigned port.
+    fs::write(dir.join("flags"), "  flags=[ HAS_CODE DEBUGGABLE ]").unwrap();
+    let session = ide_android::launch_debug("selected", "dev.sample.demo", &cancel).unwrap();
+    assert_eq!(session.port(), 36381);
+    assert_eq!(session.app.pid, 431);
+    session.close().unwrap();
+    let first = fs::read_to_string(dir.join("commands")).unwrap();
+    assert!(first.contains("am start --user current -S -D --suspend"));
+    assert!(!first.contains("--suspend -W") && !first.contains("set-debug-app"));
+    assert!(first.contains("forward --remove tcp:36381"));
+    assert!(first.contains("am force-stop --user current dev.sample.demo"));
+    let session = ide_android::launch_debug("selected", "dev.sample.demo", &cancel).unwrap();
+    fs::write(dir.join("mapping"), "selected tcp:36381 jdwp:999").unwrap();
+    fs::write(dir.join("pid"), "999").unwrap();
+    session.close().unwrap();
+    let second = fs::read_to_string(dir.join("commands")).unwrap();
+    let delta = &second[first.len()..];
+    assert!(!delta.contains("force-stop") && !delta.contains("forward --remove"));
+
+    fs::write(dir.join("flags"), "    flags=[ HAS_CODE ]").unwrap();
+    assert!(ide_android::launch_debug("selected", "dev.sample.demo", &cancel).is_err());
+    let third = fs::read_to_string(dir.join("commands")).unwrap();
+    assert!(!third[second.len()..].contains("am start"));
     fs::write(dir.join("am-error"), "").unwrap();
     assert!(ide_android::launch_app("selected", "dev.sample.demo", &cancel).is_err());
     fs::write(dir.join("conflict"), "").unwrap();
