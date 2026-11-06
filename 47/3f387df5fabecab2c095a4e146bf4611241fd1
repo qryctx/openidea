@@ -1,0 +1,26 @@
+docs/android-device-debug.md
+  s_f2a417d53e68e4::t_b9b7ca19841a6d 16-17
+  s_f2a417d53e68e4::t_ae1c7aafcc2c33 18-21
+docs/validation/android-device-debug.json
+  s_f2a417d53e68e4::t_b9b7ca19841a6d 1-115,120-121
+  s_f2a417d53e68e4::t_e1d77a933e0b22 116-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "473f387df5fabecab2c095a4e146bf4611241fd1",
+  "prompts": {},
+  "logical_commit_id": "473f387df5fabecab2c095a4e146bf4611241fd1",
+  "sessions": {
+    "s_f2a417d53e68e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af46-6aed-76d3-a86d-eb319c695285",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "qryctx <48385019+qryctx@users.noreply.github.com>",
+      "total_additions": 2114,
+      "total_deletions": 331
+    }
+  }
+}
