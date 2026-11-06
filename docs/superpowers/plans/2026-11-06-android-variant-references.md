@@ -17,8 +17,8 @@ Opposite flavor leaks; same-spelling unrelated class and method overload; text o
 
 ## Tasks
 
-- [ ] **Baseline.** Check out the tag's exact SHA and build the real desktop app. Record the toolchain, commands and actual smoke result separately from the fork.
+- [x] **Baseline.** Check out the tag's exact SHA and build the real desktop app. Record the toolchain, commands and actual smoke result separately from the fork.
 - [x] **Fixture.** Create `examples/android-variants/` with demo/full app flavors and a remapped contract module. Assemble both variants. Provide a handwritten oracle with declaration and usage ranges; app code contains misleading names and text.
 - [x] **Provider.** Implement `android-support/` and generate per-variant constructor and method call references from a real semantic provider. Compare both directions and both variants against the independent oracle.
-- [ ] **IDE.** Add a variant picker and integrate the provider into Find Usages. An indexed query must not fall back to word matching or silently show stale data. Verify switching demo→full→demo without restarting, wrong data is rejected, and the regular non-Android route still works.
-- [ ] **Deliver.** Build and exercise the modified project, publish the reviewed feature branch to the personal fork, and document what passed and what remains limited.
+- [x] **IDE.** Add a variant picker and integrate the provider into Find Usages. An indexed query must not fall back to word matching or silently show stale data. Verify switching demo→full→demo without restarting, wrong data is rejected, and the regular non-Android route still works.
+- [x] **Deliver.** Build and exercise the modified project, publish the reviewed feature branch to the personal fork, and document what passed and what remains limited.

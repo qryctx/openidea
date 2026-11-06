@@ -42,12 +42,14 @@ pnpm tauri build --bundles app --config src-tauri/tauri.android-pilot.conf.json
 ## 实测记录 · 2026-11-06
 
 - 基线：个人 fork 保留 [上游 v0.1.37](https://github.com/l0ng-ai/openidea/releases/tag/v0.1.37) 历史，起点为 `d3d0fd23c6141a019632e71ac89796c2c4d5e76b`。
+- 上游桌面构建：macOS arm64、Node 26.13、pnpm 11.25.0、Rust 1.99.1。从干净标签构建 Tauri release，Cargo 报告 19 分 37 秒；应用包 148.20 MiB。实际启动后窗口显示 `OpenIDEA 0.1.37`；独立冒烟工程成功打开，日志确认两个文件完成索引。应用包不含 JDK、Android SDK、Rust 构建目录或通用 Gradle 缓存。
 - Android：Gradle 9.5.0 / AGP 9.3.1 / lint 32.3.1 / JDK 21 / compileSdk 36。两个 APK 大小分别为 879,276 和 879,288 字节；字节码中有两个不同的方法签名。每个变体分析 7 个 Java/Kotlin 源文件；本次输出的两份 JSON 合计约 30 KiB。
 - 精度：生成器的 2 变体 × 2 声明语言 × 2 种调用共 8 组独立比对通过，文件和标识符区间逐项吻合。测试还验证了同名类、方法重载、已修改文件、错误变体、编译失败导致旧索引失效，以及 BOM / CRLF / 补充字符的 UTF-16 位置。另有 [Kotlin 与 JVM 名称不同的回归测试](../android-support/tests/renamed-method.py)：无法完整对应名称的调用会明确标为不完整。
+- 桌面：在同一个 Tauri 原生窗口点击状态栏，按 demo → full → demo 执行 Find Usages，12/12 通过。两次切换均把旧结果标签从 1 清为 0；无参调用与带参重载在同一行时仍只高亮正确的方法名。见[这次运行逐项返回的真实路径和区间](validation/android-variant-desktop.json)。第一轮使用预生成索引，工程处于限制执行项目命令的模式，未从窗口发起 Gradle 命令。
 - 前端：全量 Vitest 6,582 通过、6 跳过；搜索与引用高亮的 Chromium 回归用例 9 通过。
 
 ## 范围与代价
 
-当前支持已生成索引里的类构造调用、普通成员方法直接调用。它不是对 Android Studio 所有引用类型的替代：字段、任意类型使用、完整继承/覆写关系、反射、XML/资源和 Compose 约定均不在本次验收范围。选择 **Default language service** 可回到上游的语言服务，其结果不承诺按本功能选定的 Android 变体过滤。
+当前支持已生成索引里的类构造调用、普通成员方法直接调用。这些查询使用 AGP 自带的 lint 分析，无需默认 Kotlin 语言服务先启动。它不是对 Android Studio 所有引用类型的替代：字段、任意类型使用、完整继承/覆写关系、反射、XML/资源和 Compose 约定均不在本次验收范围。选择 **Default language service** 可回到上游的语言服务，其结果不承诺按本功能选定的 Android 变体过滤。
 
 索引按需生成，首次运行要下载分析依赖。本次样例只有两个模块；没有据此推算大型工程的性能或节省的磁盘空间。当前查询会核对索引记录的源文件摘要；修改已有源文件时要求保存、重新生成，新增文件及构建脚本、依赖或 source set 变化也需要手工重新生成。下一步最有价值的是把生成和失效检测接到 IDE 的 Gradle 同步，而后再扩大符号类型覆盖。

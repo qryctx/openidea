@@ -1,0 +1,274 @@
+{
+  "observedOn": "2026-11-06",
+  "baselineTag": "v0.1.37",
+  "platform": "macOS arm64",
+  "mode": "Native Tauri development window; pre-generated AGP indices; restricted project mode",
+  "switches": [
+    {
+      "from": "demoDebug",
+      "to": "fullDebug",
+      "priorTabs": 1,
+      "remainingTabs": 0
+    },
+    {
+      "from": "fullDebug",
+      "to": "demoDebug",
+      "priorTabs": 1,
+      "remainingTabs": 0
+    }
+  ],
+  "queries": [
+    {
+      "step": 1,
+      "variant": "demoDebug",
+      "id": "JavaGreeting",
+      "references": [
+        {
+          "uri": "app/src/demo/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+          "range": {
+            "start": {
+              "line": 3,
+              "character": 19
+            },
+            "end": {
+              "line": 3,
+              "character": 31
+            }
+          }
+        }
+      ],
+      "note": "Android constructor usages · demoDebug"
+    },
+    {
+      "step": 2,
+      "variant": "demoDebug",
+      "id": "KotlinGreeting",
+      "references": [
+        {
+          "uri": "app/src/demo/java/dev/openide/sample/contract/JavaCaller.java",
+          "range": {
+            "start": {
+              "line": 4,
+              "character": 27
+            },
+            "end": {
+              "line": 4,
+              "character": 41
+            }
+          }
+        }
+      ],
+      "note": "Android constructor usages · demoDebug"
+    },
+    {
+      "step": 3,
+      "variant": "demoDebug",
+      "id": "dev.openide.sample.contract.JavaGreeting#message()",
+      "references": [
+        {
+          "uri": "app/src/demo/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+          "range": {
+            "start": {
+              "line": 4,
+              "character": 31
+            },
+            "end": {
+              "line": 4,
+              "character": 38
+            }
+          }
+        }
+      ],
+      "note": "Android method calls · demoDebug"
+    },
+    {
+      "step": 4,
+      "variant": "demoDebug",
+      "id": "dev.openide.sample.contract.KotlinGreeting#message()",
+      "references": [
+        {
+          "uri": "app/src/demo/java/dev/openide/sample/contract/JavaCaller.java",
+          "range": {
+            "start": {
+              "line": 5,
+              "character": 24
+            },
+            "end": {
+              "line": 5,
+              "character": 31
+            }
+          }
+        }
+      ],
+      "note": "Android method calls · demoDebug"
+    },
+    {
+      "step": 5,
+      "variant": "fullDebug",
+      "id": "JavaGreeting",
+      "references": [
+        {
+          "uri": "app/src/full/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+          "range": {
+            "start": {
+              "line": 3,
+              "character": 19
+            },
+            "end": {
+              "line": 3,
+              "character": 31
+            }
+          }
+        }
+      ],
+      "note": "Android constructor usages · fullDebug"
+    },
+    {
+      "step": 6,
+      "variant": "fullDebug",
+      "id": "KotlinGreeting",
+      "references": [
+        {
+          "uri": "app/src/full/java/dev/openide/sample/contract/JavaCaller.java",
+          "range": {
+            "start": {
+              "line": 4,
+              "character": 27
+            },
+            "end": {
+              "line": 4,
+              "character": 41
+            }
+          }
+        }
+      ],
+      "note": "Android constructor usages · fullDebug"
+    },
+    {
+      "step": 7,
+      "variant": "fullDebug",
+      "id": "dev.openide.sample.contract.JavaGreeting#message()",
+      "references": [
+        {
+          "uri": "app/src/full/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+          "range": {
+            "start": {
+              "line": 4,
+              "character": 31
+            },
+            "end": {
+              "line": 4,
+              "character": 38
+            }
+          }
+        }
+      ],
+      "note": "Android method calls · fullDebug"
+    },
+    {
+      "step": 8,
+      "variant": "fullDebug",
+      "id": "dev.openide.sample.contract.KotlinGreeting#message()",
+      "references": [
+        {
+          "uri": "app/src/full/java/dev/openide/sample/contract/JavaCaller.java",
+          "range": {
+            "start": {
+              "line": 5,
+              "character": 24
+            },
+            "end": {
+              "line": 5,
+              "character": 31
+            }
+          }
+        }
+      ],
+      "note": "Android method calls · fullDebug"
+    },
+    {
+      "step": 9,
+      "variant": "demoDebug",
+      "id": "JavaGreeting",
+      "references": [
+        {
+          "uri": "app/src/demo/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+          "range": {
+            "start": {
+              "line": 3,
+              "character": 19
+            },
+            "end": {
+              "line": 3,
+              "character": 31
+            }
+          }
+        }
+      ],
+      "note": "Android constructor usages · demoDebug"
+    },
+    {
+      "step": 10,
+      "variant": "demoDebug",
+      "id": "KotlinGreeting",
+      "references": [
+        {
+          "uri": "app/src/demo/java/dev/openide/sample/contract/JavaCaller.java",
+          "range": {
+            "start": {
+              "line": 4,
+              "character": 27
+            },
+            "end": {
+              "line": 4,
+              "character": 41
+            }
+          }
+        }
+      ],
+      "note": "Android constructor usages · demoDebug"
+    },
+    {
+      "step": 11,
+      "variant": "demoDebug",
+      "id": "dev.openide.sample.contract.JavaGreeting#message()",
+      "references": [
+        {
+          "uri": "app/src/demo/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+          "range": {
+            "start": {
+              "line": 4,
+              "character": 31
+            },
+            "end": {
+              "line": 4,
+              "character": 38
+            }
+          }
+        }
+      ],
+      "note": "Android method calls · demoDebug"
+    },
+    {
+      "step": 12,
+      "variant": "demoDebug",
+      "id": "dev.openide.sample.contract.KotlinGreeting#message()",
+      "references": [
+        {
+          "uri": "app/src/demo/java/dev/openide/sample/contract/JavaCaller.java",
+          "range": {
+            "start": {
+              "line": 5,
+              "character": 24
+            },
+            "end": {
+              "line": 5,
+              "character": 31
+            }
+          }
+        }
+      ],
+      "note": "Android method calls · demoDebug"
+    }
+  ]
+}

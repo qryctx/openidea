@@ -14,3 +14,10 @@ OpenIDEA is not affiliated with, endorsed by or sponsored by JetBrains s.r.o.
 IntelliJ and IntelliJ IDEA are trademarks of JetBrains s.r.o.
 
 See THIRD_PARTY_LICENSES.md for the full list of bundled third-party assets and their licences.
+
+OpenAndroidStudio Pilot is an independent fork of OpenIDEA v0.1.37. This fork
+adds Android variant selection for Find Usages, the Gradle/lint integration
+and the mixed Java/Kotlin example. It is not an official Android Studio release.
+
+The example includes the Gradle 9.5.0 Wrapper (Apache License 2.0); see
+examples/android-variants/README.md for source and verification details.

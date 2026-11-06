@@ -71,9 +71,10 @@ async function fixtureWindow() {
     await js(`
       const { useProject } = await import("/src/platform/project.ts");
       const { openProjectInWindow } = await import("/src/features/app/windows.ts");
+      const target = ${JSON.stringify(fixture)};
       const existing = useProject.getState().project?.root;
-      if (existing !== ${JSON.stringify(fixture)})
-        void openProjectInWindow(${JSON.stringify(fixture)}, Boolean(existing));
+      const pending = [...document.querySelectorAll('[role="dialog"] [title]')].some((e) => e.title === target);
+      if (existing !== target && !pending) void openProjectInWindow(target, Boolean(existing));
     `);
   }
   const origin = windowLabel;
@@ -104,6 +105,31 @@ async function fixtureWindow() {
     }
     return null;
   }, "the trusted fixture in its project window");
+}
+
+async function trustFixture() {
+  await js(`
+    const { useProject } = await import("/src/platform/project.ts");
+    const { tx } = await import("/src/platform/i18n.ts");
+    const project = useProject.getState().project;
+    if (project?.root !== ${JSON.stringify(fixture)}) throw new Error("Unexpected project root");
+    if (!project.trusted) {
+      if (document.querySelector('[role="dialog"]')) throw new Error("Unexpected open dialog");
+      const trust = [...document.querySelectorAll('[role="status"] button')].find(
+        (b) => b.textContent.trim() === tx("Trust Project"));
+      if (!trust) throw new Error("Missing trust banner for the fixture");
+      trust.click();
+    }
+  `);
+  await until(
+    () =>
+      js(`
+    const { useProject } = await import("/src/platform/project.ts");
+    const project = useProject.getState().project;
+    return project?.root === ${JSON.stringify(fixture)} && project.trusted === true;
+  `),
+    "trusting only the fixture project",
+  );
 }
 
 async function choose(variant) {
@@ -227,9 +253,30 @@ try {
     return useProject.getState().project?.root;`),
     fixture,
   );
+  await trustFixture();
   const results = [];
+  const switches = [];
+  let previous = null;
   for (const variant of ["demoDebug", "fullDebug", "demoDebug"]) {
+    const priorTabs = await js(`
+      const { useUsages } = await import("/src/features/code-insight/usages.ts");
+      return useUsages.getState().tabs.length;
+    `);
     await choose(variant);
+    if (previous !== null) {
+      assert.ok(priorTabs > 0, "The previous variant must have search tabs");
+      await until(
+        () =>
+          js(`
+        const { useUsages } = await import("/src/features/code-insight/usages.ts");
+        return useUsages.getState().tabs.length === 0 &&
+          !document.querySelector('[aria-label="Usage searches"] [role="tab"]');
+      `),
+        "clearing stale Find Usages tabs on variant change",
+      );
+      switches.push({ from: previous, to: variant, priorTabs, remainingTabs: 0 });
+    }
+    previous = variant;
     const declarations = { ...oracle.declarations, ...oracle.memberDeclarations };
     const expected = { ...oracle.variants[variant], ...oracle.memberVariants[variant] };
     for (const [id, declaration] of Object.entries(declarations)) {
@@ -243,7 +290,10 @@ try {
       console.log(variant, id, result.references.map((l) => l.uri).join(", "));
     }
   }
-  await writeFile(join(out, "results.json"), JSON.stringify({ app: status.identifier, results }, null, 2) + "\n");
+  await writeFile(
+    join(out, "results.json"),
+    JSON.stringify({ app: status.identifier, trusted: true, switches, results }, null, 2) + "\n",
+  );
   console.log("Verified", results.length, "native Find Usages queries. Evidence:", out);
 } finally {
   socket.close();
