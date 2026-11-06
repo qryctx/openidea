@@ -276,5 +276,47 @@
       ],
       "note": "Android method calls · demoDebug"
     }
-  ]
+  ],
+  "signedRelease": {
+    "observedOn": "2026-11-06",
+    "signedExecutableSHA256": "e6703ca0424fb839c999585b8bb3811f6c1a74fd477be020ba3d884a54ce9bbb",
+    "bundleId": "io.github.qryctx.openandroidstudio",
+    "freshProject": true,
+    "developmentServer": false,
+    "explicitJavaHomeOrAndroidHome": false,
+    "observedPickerVariants": ["demoDebug", "demoRelease", "fullDebug", "fullRelease"],
+    "switchesClearedOldResults": true,
+    "queries": [
+      {
+        "variant": "demoDebug",
+        "declaration": "dev.openide.sample.contract.KotlinGreeting#message()",
+        "resultCount": 1,
+        "path": "app/src/demo/java/dev/openide/sample/contract/JavaCaller.java",
+        "lineOneBased": 6
+      },
+      {
+        "variant": "fullDebug",
+        "declaration": "dev.openide.sample.contract.KotlinGreeting#message()",
+        "resultCount": 1,
+        "path": "app/src/full/java/dev/openide/sample/contract/JavaCaller.java",
+        "lineOneBased": 6
+      },
+      {
+        "variant": "fullDebug",
+        "declaration": "dev.openide.sample.contract.JavaGreeting#message()",
+        "resultCount": 1,
+        "path": "app/src/full/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+        "lineOneBased": 5
+      },
+      {
+        "variant": "demoDebug",
+        "declaration": "dev.openide.sample.contract.JavaGreeting#message()",
+        "resultCount": 1,
+        "path": "app/src/demo/kotlin/dev/openide/sample/contract/FlavorGreeting.kt",
+        "lineOneBased": 5
+      }
+    ],
+    "indexFilesCreated": [":app/demoDebug", ":app/fullDebug"],
+    "signatureVerifiedAfterQueries": true
+  }
 }

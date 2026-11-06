@@ -24,3 +24,16 @@ pnpm package:android:mac
 ## 已验证的工程行为
 
 在两份独立的干净工程副本上各执行 12 次 Find Usages，返回的文件和 UTF-16 区间一致。首次发现列出了 demo/full 的 debug 和 release 变体，选择 demo 时仅生成对应模块的 demo 索引。两次变体切换均把旧搜索标签从 1 清到 0。新增一个 Java 调用，查询结果自动从 1 变到 2，移除后回到 1。另一次在临时工程里引入 Gradle 配置错误，界面清除旧结果并显示失败，修复后自动恢复到原选的 `demoDebug`。具有重复变体名的两个应用以及 AGP 禁用的变体另有真实 Gradle 回归覆盖。[桌面返回位置](validation/android-project-sync.json) · [多应用与禁用变体验证](../android-support/tests/sync-variants.py)
+
+## 签名发行包实测
+
+使用提交 `ce7f386d` 在同一台 Apple Silicon Mac 编译。两份应用使用相同的应用标识、entitlements、优化配置和本地 ad-hoc 签名，都通过了 `codesign --verify --deep --strict`。对照构建将匹配的诊断映射放回 `frontendDist`，精简版使用标准发行命令。两个可执行文件里除映射以外的 398 份前端资源逐项一致，其中有 356 份 JavaScript。
+
+| 相同源码的签名产物       | `du -sk` 已分配磁盘 |    MiB | 内置 source map |
+| ------------------------ | ------------------: | -----: | --------------: |
+| 含映射的对照包           |         151,148 KiB | 147.61 |             337 |
+| OpenAndroidStudio 发行包 |         141,528 KiB | 138.21 |               0 |
+
+实际减少 **9,620 KiB，即 9.39 MiB（6.36%）**。两份签名包的逻辑文件大小相差 9,849,600 字节。上一轮 Pilot 实测 147.43 MiB，使用的是较早的代码。诊断归档包含全部 337 份匹配的映射，压缩为 10,951,032 字节，随本地交付单独提供。SDK、Gradle 缓存和编译 IDE 自身的 Cargo 缓存另计。[签名、体积及哈希记录](validation/android-release-size.json)
+
+随后在精简包里直接打开另一份没有索引的示例工程。状态栏从 AGP 列出 `demoDebug`、`demoRelease`、`fullDebug` 和 `fullRelease`。用 ⌥F7 查询 Kotlin 的无参方法，demo/full 分别只命中对应源集的 `JavaCaller.java:6`；反向查询 Java 的无参方法，分别只命中 `FlavorGreeting.kt:5`。每次切换先清空旧结果。两份选中变体的索引都在工程内生成，应用的签名在同步后仍然有效。[发行包的实际查询](validation/android-project-sync.json)

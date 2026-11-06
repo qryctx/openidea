@@ -1,0 +1,37 @@
+{
+  "observedOn": "2026-11-06",
+  "sourceCommit": "ce7f386d08c2c93c665b40eca708535729a4fd68",
+  "platform": "27.0.1 arm64",
+  "measurement": "After ad-hoc signing; du -sk uses KiB; 1 MiB = 1024 KiB.",
+  "control": {
+    "id": "io.github.qryctx.openandroidstudio",
+    "executableSHA256": "f501a833e2484d40c7e178afeba9af0cfee8ed2a7024eb5745c6d23c7eb7d738",
+    "entitlementsSHA256": "d3caf7b18ce9d0f5cec8282c4d25866d5829ec636b09a1e248e858bc9d39dbc3",
+    "duAllocatedKiB": 151148,
+    "signedLogicalBytes": 154760062,
+    "embeddedFiles": 735,
+    "embeddedMaps": 337,
+    "embeddedMapPayloadBytes": 9829837
+  },
+  "androidEdition": {
+    "id": "io.github.qryctx.openandroidstudio",
+    "executableSHA256": "e6703ca0424fb839c999585b8bb3811f6c1a74fd477be020ba3d884a54ce9bbb",
+    "entitlementsSHA256": "d3caf7b18ce9d0f5cec8282c4d25866d5829ec636b09a1e248e858bc9d39dbc3",
+    "duAllocatedKiB": 141528,
+    "signedLogicalBytes": 144910462,
+    "embeddedFiles": 398,
+    "embeddedMaps": 0,
+    "embeddedMapPayloadBytes": 0
+  },
+  "priorPilotReferenceKiB": 150964,
+  "netSavedAllocatedKiB": 9620,
+  "netSavedSignedLogicalBytes": 9849600,
+  "all398NonmapAssetPayloadsIdentical": true,
+  "diagnosticsArchive": {
+    "file": "OpenAndroidStudio-macos-arm64-sourcemaps.tar.gz",
+    "files": 337,
+    "bytes": 10951032,
+    "sha256": "ca4144ea0648dc30d31a57a7853bf4fb733cadc17797d4012069735f2edd3590",
+    "appliesToExecutableSha256": "e6703ca0424fb839c999585b8bb3811f6c1a74fd477be020ba3d884a54ce9bbb"
+  }
+}

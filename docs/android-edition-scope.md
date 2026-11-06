@@ -2,6 +2,8 @@
 
 面向已有 Gradle 工程、主要用真机的 Java/Kotlin 开发者。建议复用 OpenIDEA 的编辑器和 JVM 工具链，由本项目负责 Android 工程模型、当前变体、设备部署和源码调试。以下清单用于设计 Android 发行版。测量基准是提交 `6909d6c8` 对应的 macOS arm64 Pilot。
 
+首批 source map 拆分与 Android 自动工程同步已经实施，签名对照实测减少 9.39 MiB。[当前发行版及验证方法](android-project-sync.md)
+
 ## 哪些东西真正占空间
 
 | 基线实测                | 数值                                                                                                                | 如何用于决定                                                                                      |
