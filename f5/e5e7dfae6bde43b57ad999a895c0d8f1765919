@@ -1,0 +1,28 @@
+docs/validation/android-project-sync.json
+  s_f2a417d53e68e4::t_168c5ee4a1efe9 279-321
+docs/android-edition-scope.md
+  s_f2a417d53e68e4::t_e11649a2785d5e 5-6
+docs/android-project-sync.md
+  s_f2a417d53e68e4::t_18f226f94cdc2b 27-39
+docs/validation/android-release-size.json
+  s_f2a417d53e68e4::t_fc411eca03001c 1-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "f5e5e7dfae6bde43b57ad999a895c0d8f1765919",
+  "prompts": {},
+  "logical_commit_id": "f5e5e7dfae6bde43b57ad999a895c0d8f1765919",
+  "sessions": {
+    "s_f2a417d53e68e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af46-6aed-76d3-a86d-eb319c695285",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "qryctx <48385019+qryctx@users.noreply.github.com>",
+      "total_additions": 57,
+      "total_deletions": 2
+    }
+  }
+}
