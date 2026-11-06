@@ -1,0 +1,127 @@
+android-support/index.gradle
+  s_f2a417d53e68e4::t_ef2940731a43e2 14
+  s_f2a417d53e68e4::t_b73b30a00f145f 17-20,30,35-36,40
+  s_f2a417d53e68e4::t_712723e347a135 10-11,15-16,28-29,31,42,51,109,123,143
+src-tauri/src/commands/mod.rs
+  s_f2a417d53e68e4::t_b0aaa3f9df22e3 70-71
+android-support/verify-fixture.py
+  s_f2a417d53e68e4::t_b94fc312541c87 5,23,25-27,29-31,56-60
+src/platform/locales/text/zh.json
+  s_f2a417d53e68e4::t_d45d9a7e4a8e2f 6257
+  s_f2a417d53e68e4::t_3de36b91b06f42 6258
+  s_f2a417d53e68e4::t_d5009ee240c8a1 6256,6261-6264
+  s_f2a417d53e68e4::t_d269e4d8f3d094 6259-6260
+src/features/code-insight/androidIndex.ts
+  s_f2a417d53e68e4::t_63caf6437f1046 40,66,68-76,83,95
+  s_f2a417d53e68e4::t_d5009ee240c8a1 67,89-91
+  s_f2a417d53e68e4::t_72d386b0c0847e 15,47,102,107,112
+src/features/code-insight/index.ts
+  s_f2a417d53e68e4::t_d5009ee240c8a1 6-7,24-30,45-46,48-53,57-58,60-61,71,73-76,135-143,151
+src/platform/locales/text/en.json
+  s_f2a417d53e68e4::t_d5009ee240c8a1 18,23-26
+  s_f2a417d53e68e4::t_d45d9a7e4a8e2f 19
+  s_f2a417d53e68e4::t_3de36b91b06f42 20
+  s_f2a417d53e68e4::t_ac803e32f84a48 21-22
+package.json
+  s_f2a417d53e68e4::t_91f86645365434 11-12
+src/features/code-insight/androidVariants.test.ts
+  s_f2a417d53e68e4::t_dcbbf805e37ae4 1,20,52,170-211
+  s_f2a417d53e68e4::t_d45d9a7e4a8e2f 2-19,21-51,53-150
+  s_f2a417d53e68e4::t_7a28d7d489961d 151-169,212
+src-tauri/src/commands/android.rs
+  s_f2a417d53e68e4::t_7a28d7d489961d 56-58,77-82,84-85,91-94,102-105,113-124
+  s_f2a417d53e68e4::t_b0aaa3f9df22e3 41-42,45-49,51-53,60-62,64-76,86-89,95-101,108-112,125
+  s_f2a417d53e68e4::t_484c4ea263d37d 43-44,50,54-55,59,63,83,90,106-107
+android-support/verify-desktop.mjs
+  s_f2a417d53e68e4::t_04a90fce8602d7 4,172,197-198,200-202,292-304,308-360,368-373,375,386,414-415,418-426,430
+  s_f2a417d53e68e4::t_fc6b5969974863 20,150-161,163-166,168-171,173-181,192-195,305-307
+  s_f2a417d53e68e4::t_fdabe0d12c2a64 1,11-19,21-26,112-114,122,196,427-429,431-433
+android-support/README.md
+  s_f2a417d53e68e4::t_0fca2a890b5bf1 32,44
+  s_f2a417d53e68e4::t_e4d442e09b3b3a 3-17,19-20,23,31,38-39,43
+src/features/code-insight/androidVariants.ts
+  s_f2a417d53e68e4::t_d45d9a7e4a8e2f 3-4,126,138-147,159-160
+  s_f2a417d53e68e4::t_d5009ee240c8a1 21,23-24,26-29,63-71,81-83,132-134,137,148-153,163,167-176,180-186,201-202,209-226,228,232-233,247,251-253,255-256
+  s_f2a417d53e68e4::t_63caf6437f1046 5,10-20,30,32-46,48-52,54-62,72-77,79-80,84-87,89,112,120-125,127-131,135-136,154-158,161-162,164,166,177-179,188-195,197-200,203,205-208,229-231,234,237-239,242-245,257,269
+  s_f2a417d53e68e4::t_3de36b91b06f42 47,78,88,90,92,100-103,110
+  s_f2a417d53e68e4::t_7a28d7d489961d 91,93-94,99,104-109,111,113-119
+  s_f2a417d53e68e4::t_20257d76bd8134 7,204,235-236,240-241,246,248-250,254,258-268
+docs/android-project-sync.md
+  s_f2a417d53e68e4::t_cfe8a03a7db5cd 1-22
+  s_f2a417d53e68e4::t_9d1435b7e72f78 23-26
+docs/android-variant-pilot.md
+  s_f2a417d53e68e4::t_cfe8a03a7db5cd 3-5
+src-tauri/tauri.android-pilot.conf.json
+  s_f2a417d53e68e4::t_91f86645365434 5-8
+crates/ide-build/Cargo.toml
+  s_f2a417d53e68e4::t_433213d7a84d4a 10
+  s_f2a417d53e68e4::t_e9fce7fa021286 18
+crates/ide-build/src/android.rs
+  s_f2a417d53e68e4::t_7a28d7d489961d 86-88,135-136,149-153,161,241-242,249-251
+  s_f2a417d53e68e4::t_b49a37822ad9ae 105,160,162-163,207,210,268-277
+  s_f2a417d53e68e4::t_433213d7a84d4a 1-7,9-41,47-69,72-85,89-104,106-134,137-148,154-159,164-175,192-196,198-200,206,213,223,237,256,324
+  s_f2a417d53e68e4::t_2460ef2885a04a 180-189,212,225-236,243-248,258-267,278-323
+  s_f2a417d53e68e4::t_cff30769e0b266 8,42-46,70-71,176-179,190-191,197,201-205,208-209,211,214-222,224,238-240,252-255,257
+crates/ide-sdk/src/apply.rs
+  s_f2a417d53e68e4::t_7a28d7d489961d 233-234
+  s_f2a417d53e68e4::t_b0aaa3f9df22e3 229-232,235-243
+README.md
+  s_f2a417d53e68e4::t_cfe8a03a7db5cd 3
+docs/validation/android-project-sync.json
+  s_f2a417d53e68e4::t_d601239c40349a 8
+  s_f2a417d53e68e4::t_e50507956a7477 1-7,9-280
+crates/ide-sdk/src/java.rs
+  s_f2a417d53e68e4::t_b0aaa3f9df22e3 204-209,212-222,226-230
+  s_f2a417d53e68e4::t_7a28d7d489961d 210-211,223-225
+crates/ide-build/src/lib.rs
+  s_f2a417d53e68e4::t_433213d7a84d4a 8
+examples/android-variants/README.md
+  s_f2a417d53e68e4::t_cfe8a03a7db5cd 17,30
+android-support/discover.gradle
+  s_f2a417d53e68e4::t_712723e347a135 1-10,13-25
+  s_f2a417d53e68e4::t_fb53bcf3fc840a 11-12
+android-support/tests/sync-variants.py
+  s_f2a417d53e68e4::t_ef2940731a43e2 18,22,35,42-46,50-51
+  s_f2a417d53e68e4::t_a63c18ac1bd5d9 1-17,19-21,23-34,36-41,47-49,52-54
+  s_f2a417d53e68e4::t_e7efa8610426ec 55-69
+scripts/build-android.ts
+  s_f2a417d53e68e4::t_91f86645365434 1-24
+crates/ide-android/src/lib.rs
+  s_f2a417d53e68e4::t_b0aaa3f9df22e3 56-60
+src/features/code-insight/AndroidVariantStatus.tsx
+  s_f2a417d53e68e4::t_3de36b91b06f42 41
+  s_f2a417d53e68e4::t_d5009ee240c8a1 2,7,9-21,26-27,31,38-39,42-43,46-48,53
+  s_f2a417d53e68e4::t_d45d9a7e4a8e2f 35
+src/bindings.ts
+  s_f2a417d53e68e4::t_240c97f197b4ac 18-19,1630-1634
+src/features/code-insight/androidIndex.test.ts
+  s_f2a417d53e68e4::t_7a28d7d489961d 146-163
+  s_f2a417d53e68e4::t_97cd4e150b33dc 4,145,164-173
+scripts/package-android-macos.sh
+  s_f2a417d53e68e4::t_91f86645365434 1-7
+android-support/index-variants
+  s_f2a417d53e68e4::t_b94fc312541c87 4-5,7-8,10
+  s_f2a417d53e68e4::t_1afb7c7801cdd5 3,6,21
+  s_f2a417d53e68e4::t_712723e347a135 19
+Cargo.lock
+  s_f2a417d53e68e4::t_9d303bb1a4d6e5 4124,4133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "3ff9bd0ee09a5e15d55f1427361eb3727051788b",
+  "prompts": {},
+  "logical_commit_id": "3ff9bd0ee09a5e15d55f1427361eb3727051788b",
+  "sessions": {
+    "s_f2a417d53e68e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af46-6aed-76d3-a86d-eb319c695285",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "qryctx <48385019+qryctx@users.noreply.github.com>",
+      "total_additions": 1395,
+      "total_deletions": 236
+    }
+  }
+}
