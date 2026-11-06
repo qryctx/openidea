@@ -1,0 +1,140 @@
+src/features/run/ConfigChooser.tsx
+  s_f2a417d53e68e4::t_3e376a4f0f825f 6,14,28,118-132,138-140,179-184
+  s_f2a417d53e68e4::t_8dabd515ed2d80 185,294-303
+src/features/logcat/runScope.test.tsx
+  s_f2a417d53e68e4::t_ab268ab9eaef40 64-71
+  s_f2a417d53e68e4::t_7ea046ca625b2f 5-63,72-95
+  s_f2a417d53e68e4::t_eb6f8d124427a7 1-4
+android-support/README.md
+  s_f2a417d53e68e4::t_da84f8d12bcc63 1,6-8,10-19
+  s_f2a417d53e68e4::t_f2c8d18237ea4f 9,20
+  s_f2a417d53e68e4::t_66f7a0b0f1682f 21-22
+src/features/code-insight/androidVariants.ts
+  s_f2a417d53e68e4::t_5b36a8dede3ce6 9-11
+  s_f2a417d53e68e4::t_483a14d8b4d440 12-15
+src/bindings.ts
+  s_f2a417d53e68e4::t_2da08b23c6580d 17,20-21,1633-1645
+src/features/run/androidRun.ts
+  s_f2a417d53e68e4::t_5b36a8dede3ce6 1-5,14-17,19-26,28-34,37-41,43,45,54-56,62,64-67,78-83,85-86,88-91,99-105,110-114,116-119,126,133,135-138,147-154
+  s_f2a417d53e68e4::t_ffe7d8aea7df57 6-13,27,35-36,42,44,46-53,57-61,63,68-77,84,87,92-98,106-109,115,120-125,127-132,134,139-146
+  s_f2a417d53e68e4::t_3e376a4f0f825f 18
+examples/android-variants/README.md
+  s_f2a417d53e68e4::t_4b38c67261ae00 13
+src/features/logcat/index.ts
+  s_f2a417d53e68e4::t_ffe7d8aea7df57 5-6,8,23-64,66
+examples/android-variants/app/build.gradle.kts
+  s_f2a417d53e68e4::t_4b38c67261ae00 8
+src/features/logcat/store.ts
+  s_f2a417d53e68e4::t_ffe7d8aea7df57 24,32-33,54-55,109,116,134-163,165-166,172-176
+  s_f2a417d53e68e4::t_cf1b7efb8bc072 21-23
+  s_f2a417d53e68e4::t_4a0a6f62333d1f 31
+  s_7073e490bc1d9e::t_3c860d3ebbd199 20
+src/features/run/store.ts
+  s_f2a417d53e68e4::t_5b36a8dede3ce6 59,64,211
+  s_f2a417d53e68e4::t_56acc865bc4f2f 212-213
+crates/ide-android/src/lib.rs
+  s_f2a417d53e68e4::t_54a97fc92859b7 12,15,138,141-143,146,154-163,166-167,173-185,187-189,192-196,198,218,220
+  s_f2a417d53e68e4::t_12dedaa13aed4c 14,172
+examples/android-variants/app/src/main/kotlin/dev/openide/sample/MainActivity.kt
+  s_f2a417d53e68e4::t_4b38c67261ae00 5-8,14-28
+src/features/run/AndroidRunWidget.tsx
+  s_f2a417d53e68e4::t_3e376a4f0f825f 1-51
+  s_f2a417d53e68e4::t_792a51168a35c8 52-105
+src/features/logcat/LogcatView.tsx
+  s_f2a417d53e68e4::t_ffe7d8aea7df57 9,44,98-99,101,106-110,112-115,117,122-123,125,163,166,281-291
+src/platform/locales/text/zh.json
+  s_f2a417d53e68e4::t_ffe7d8aea7df57 6278-6279
+  s_f2a417d53e68e4::t_ebadd8cc0b3a6b 6275-6277
+  s_7073e490bc1d9e::t_55285daf361a2f 6264-6274
+crates/ide-build/src/android.rs
+  s_f2a417d53e68e4::t_54a97fc92859b7 19,166-215
+src/features/run/androidRun.test.ts
+  s_f2a417d53e68e4::t_b8677761888333 1-11,13-20,22-41,43,45-47,49-52,54-58,60,62-66,68-101,103-106,108-116,140-144,146,148-166,168-171
+  s_f2a417d53e68e4::t_074be987971b5f 42,44,48,61,67,117-139
+  s_f2a417d53e68e4::t_e93edea985da2a 12
+  s_f2a417d53e68e4::t_ce4d9b69abd1d6 21
+  s_f2a417d53e68e4::t_40f15e509e84a3 53
+  s_f2a417d53e68e4::t_9c2b66f0871d6a 59
+  s_f2a417d53e68e4::t_12f79cdf50f674 102
+  s_f2a417d53e68e4::t_08a5a081d132cb 107
+  s_f2a417d53e68e4::t_faf78f3f879f98 145
+  s_f2a417d53e68e4::t_210f1854c08362 147
+  s_f2a417d53e68e4::t_75f50acb1765d3 167
+android-support/run.gradle
+  s_f2a417d53e68e4::t_4b38c67261ae00 1-17,19-37,44-52,54-65
+  s_f2a417d53e68e4::t_093dd75c00213e 18,38-43,53
+crates/ide-android/src/run.rs
+  s_f2a417d53e68e4::t_54a97fc92859b7 1-114,116-136,138-139,141-159,161-162,164-214
+  s_f2a417d53e68e4::t_d074957dcc9fe9 115,137,140,160,163
+src/features/run/RunWidget.tsx
+  s_f2a417d53e68e4::t_3e376a4f0f825f 10,13-14,19-24
+  s_f2a417d53e68e4::t_edc861b340b814 25-28
+android-support/verify-device-run.mjs
+  s_f2a417d53e68e4::t_5fafbb1f255a76 44,55-169
+  s_f2a417d53e68e4::t_cd95750256417f 45-54
+  s_f2a417d53e68e4::t_117b5c8a632871 1-43,170-183
+src/platform/locales/text/en.json
+  s_f2a417d53e68e4::t_ffe7d8aea7df57 40-41
+  s_f2a417d53e68e4::t_4f3c2551369e1f 37-39
+  s_7073e490bc1d9e::t_ed149b355760ae 26-36
+docs/android-device-run.md
+  s_f2a417d53e68e4::t_cd95750256417f 10-11
+  s_f2a417d53e68e4::t_20fd8f2329bef2 1-9,12-34
+android-support/tests/run-artifact.py
+  s_f2a417d53e68e4::t_23845385fbfd3b 1-20,22-24,26-72,77-81
+  s_f2a417d53e68e4::t_f9502ef65f38b3 82-95
+  s_f2a417d53e68e4::t_f2c8d18237ea4f 21,25,73-76
+crates/ide-android/src/process.rs
+  s_f2a417d53e68e4::t_54a97fc92859b7 40-42
+src/features/run/index.ts
+  s_f2a417d53e68e4::t_3e376a4f0f825f 43-49,51,69,102,219-222,295,346-350,352-357,359
+  s_f2a417d53e68e4::t_83f49073119b48 50,351,358,360
+src/features/run/Run.module.css
+  s_f2a417d53e68e4::t_3e376a4f0f825f 830-835
+src/platform/androidVariants.ts
+  s_f2a417d53e68e4::t_5b36a8dede3ce6 1-30
+  s_f2a417d53e68e4::t_f8ceb154d01027 31-36
+README.md
+  s_f2a417d53e68e4::t_9bac1e379820af 1,3
+android-support/verify-desktop.mjs
+  s_f2a417d53e68e4::t_87f2a26430ac4e 28-31,364,424-454
+crates/ide-android/tests/run.rs
+  s_f2a417d53e68e4::t_6122af1c9432f5 1-73
+crates/ide-build/tests/android_run.rs
+  s_f2a417d53e68e4::t_36b1a5bb0b1508 1-36
+docs/android-project-sync.md
+  s_f2a417d53e68e4::t_f3bdeadede0ae6 7
+docs/validation/android-device-run.json
+  s_f2a417d53e68e4::t_7ae45ad55bf28a 1-97
+src-tauri/src/commands/android.rs
+  s_f2a417d53e68e4::t_737d569e70e38c 1,29-30,35,125-182
+src-tauri/src/commands/mod.rs
+  s_f2a417d53e68e4::t_630d90d2941b47 72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "db1893da5480e0b0d6e8ae949f8c838fa6a50a2d",
+  "prompts": {},
+  "logical_commit_id": "db1893da5480e0b0d6e8ae949f8c838fa6a50a2d",
+  "sessions": {
+    "s_7073e490bc1d9e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1b017-0302-7870-b203-3d061604df23",
+        "model": "unknown"
+      },
+      "human_author": "qryctx <48385019+qryctx@users.noreply.github.com>"
+    },
+    "s_f2a417d53e68e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af46-6aed-76d3-a86d-eb319c695285",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "qryctx <48385019+qryctx@users.noreply.github.com>",
+      "total_additions": 1098,
+      "total_deletions": 116
+    }
+  }
+}
