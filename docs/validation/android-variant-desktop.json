@@ -309,5 +309,28 @@
       ]
     }
   ],
-  "sameFilesAndUtf16RangesInBothRuns": true
+  "sameFilesAndUtf16RangesInBothRuns": true,
+  "packagedSpotCheck": {
+    "bundleId": "io.github.qryctx.openandroidstudio.pilot",
+    "platform": "macOS arm64",
+    "signedExecutableSha256": "568e332a01cd487ee2bbbb44287f405d2141f08fbde042940e95589dbb6eaa17",
+    "provider": "Native packaged UI; no debug bridge or development server",
+    "declaration": "dev.openide.sample.contract.KotlinGreeting#message()",
+    "action": "Option+F7",
+    "results": [
+      {
+        "variant": "fullDebug",
+        "count": 1,
+        "path": "app/src/full/java/dev/openide/sample/contract/JavaCaller.java",
+        "lineOneBased": 6
+      },
+      {
+        "variant": "demoDebug",
+        "count": 1,
+        "path": "app/src/demo/java/dev/openide/sample/contract/JavaCaller.java",
+        "lineOneBased": 6
+      }
+    ],
+    "oldResultsClearedOnSwitch": true
+  }
 }

@@ -11,6 +11,17 @@
 5. 在库 `:contract` 的声明上执行 **Find Usages**（macOS 默认 ⌥F7），依次选择 `demoDebug → fullDebug → demoDebug`。选择器只控制 Java/Kotlin 查引用，不更改 Gradle 的构建或运行配置。
 6. 自动复现相同的桌面操作：保持上述开发窗口开启，在第二个终端运行 `node android-support/verify-desktop.mjs`。脚本连接该工作树的 Tauri 调试桥，操作真实状态栏和编辑器，检查 Find Usages 结果、文件、UTF-16 区间及界面高亮，并在本机输出截图和 JSON。也可传入自选的证据目录。
 
+## 复现干净的上游基线
+
+从已有 `v0.1.37` 标签的 Git 仓库运行以下命令。临时配置仅隔离 macOS 应用标识、关闭更新包生成，不改动上游源码或 release 优化选项：
+
+```sh
+git worktree add --detach ../openidea-v0.1.37 v0.1.37
+cd ../openidea-v0.1.37
+pnpm install --frozen-lockfile
+pnpm tauri build --bundles app --config '{"identifier":"ai.l0ng.openidea.baseline-v0137","bundle":{"createUpdaterArtifacts":false}}'
+```
+
 ## 打包本机桌面应用
 
 在 macOS 上，从本分支根目录运行：
@@ -18,6 +29,8 @@
 ```sh
 pnpm install --frozen-lockfile
 pnpm tauri build --bundles app --config src-tauri/tauri.android-pilot.conf.json
+codesign --force --sign - --timestamp=none --entitlements src-tauri/Entitlements.plist "target/release/bundle/macos/OpenAndroidStudio Pilot.app"
+codesign --verify --strict "target/release/bundle/macos/OpenAndroidStudio Pilot.app"
 ```
 
 产物是 `target/release/bundle/macos/OpenAndroidStudio Pilot.app`（自定义了 `CARGO_TARGET_DIR` 时在对应目录下）。Pilot 使用独立的应用标识，保留上游许可证和 NOTICE；不指向上游更新服务。这是供本地验证的构建，没有发布为已公证的 macOS 安装包。生成 Android 索引时仍需本机 JDK 和 SDK。
@@ -46,6 +59,8 @@ pnpm tauri build --bundles app --config src-tauri/tauri.android-pilot.conf.json
 - Android：Gradle 9.5.0 / AGP 9.3.1 / lint 32.3.1 / JDK 21 / compileSdk 36。两个 APK 大小分别为 879,276 和 879,288 字节；字节码中有两个不同的方法签名。每个变体分析 7 个 Java/Kotlin 源文件；本次输出的两份 JSON 合计约 30 KiB。
 - 精度：生成器的 2 变体 × 2 声明语言 × 2 种调用共 8 组独立比对通过，文件和标识符区间逐项吻合。测试还验证了同名类、方法重载、已修改文件、错误变体、编译失败导致旧索引失效，以及 BOM / CRLF / 补充字符的 UTF-16 位置。另有 [Kotlin 与 JVM 名称不同的回归测试](../android-support/tests/renamed-method.py)：无法完整对应名称的调用会明确标为不完整。
 - 桌面：在同一个 Tauri 原生窗口点击状态栏，按 demo → full → demo 执行 Find Usages，12/12 通过。两次切换均把旧结果标签从 1 清为 0；无参调用与带参重载在同一行时仍只高亮正确的方法名。见[这次运行逐项返回的真实路径和区间](validation/android-variant-desktop.json)。在受限模式和信任工程模式分别运行，各 12/12，返回的文件和 UTF-16 区间逐项一致。两轮使用同一份预生成索引，未在 IDE 中安装可选的 JDT、Kotlin 语言服务，也未从窗口发起 Gradle 命令。
+- 发布包：使用相同 release 优化配置。Tauri 打包时报告 148.27 MiB；最终本地 ad-hoc 签名的 arm64 应用通过 `codesign --verify --deep --strict`。交付拷贝 `du -sk` 为 150,964 KiB（147.43 MiB），不含 SDK、JDK 或源码构建缓存。在该拷贝中直接用 ⌥F7 查询 `KotlinGreeting.message()`：fullDebug 只返回 `app/src/full/java/…/JavaCaller.java:6`；切到 demoDebug 先清空旧标签，再返回 `app/src/demo/java/…/JavaCaller.java:6`。这是打包应用的操作，未连接开发服务器。
+- 空间：为下一次修改 IDE 保留的 Rust 开发增量缓存实测约 8.11 GiB；仅运行打包应用不需要这份缓存。已清掉本次重复的 release 中间文件。构建目录和 APFS 克隆的大小不能简单相加推算实际回收空间。
 - 前端：全量 Vitest 6,582 通过、6 跳过；搜索与引用高亮的 Chromium 回归用例 9 通过。
 
 ## 范围与代价
