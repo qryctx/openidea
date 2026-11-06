@@ -15,5 +15,13 @@
   "Android index unavailable. Regenerate the variant index.": "Android index unavailable. Regenerate the variant index.",
   "Invalid Android index. Regenerate the variant index.": "Invalid Android index. Regenerate the variant index.",
   "Android sources changed. Save and regenerate the variant index.": "Android sources changed. Save and regenerate the variant index.",
-  "No indexed class or method at the caret. Use the default language service for other symbols.": "No indexed class or method at the caret. Use the default language service for other symbols."
+  "No indexed class or method at the caret. Use the default language service for other symbols.": "No indexed class or method at the caret. Use the default language service for other symbols.",
+  "Android variant {variant} is no longer available. Select another variant.": "Android variant {variant} is no longer available. Select another variant.",
+  "Android project changed": "Android project changed",
+  "Android sync cancelled. Reload Android reference variants to retry.": "Android sync cancelled. Reload Android reference variants to retry.",
+  "Cancel Android sync": "Cancel Android sync",
+  "Android project sync failed": "Android project sync failed",
+  "Syncing Android variants…": "Syncing Android variants…",
+  "Preparing {variant}…": "Preparing {variant}…",
+  "Refreshing Android references…": "Refreshing Android references…"
 }

@@ -201,6 +201,33 @@ pub fn cap_java_home(cfg: &mut LanguageServerConfig, jdks: &[Jdk]) {
 /// Oldest Java version jdtls runs on when its install can't tell (its launcher's check).
 pub const JDTLS_MIN_JAVA: u32 = 21;
 
+/// A Gradle-provisioned JDK 21 is common on macOS even when no JDK is registered with the OS.
+pub fn android_gradle_jdk(gradle_home: Option<&Path>) -> Option<Jdk> {
+    let installed = installed_jdks();
+    if let Some(jdk) = installed.iter().find(|j| j.major == 21) {
+        return Some(jdk.clone());
+    }
+    let gradle_home = gradle_home
+        .map(Path::to_owned)
+        .or_else(|| std::env::var_os("GRADLE_USER_HOME").map(PathBuf::from))
+        .or_else(|| home_dir().map(|p| p.join(".gradle")));
+    if let Some(dir) = gradle_home.map(|h| h.join("jdks")) {
+        for install in children(&dir).into_iter().filter(|p| p.is_dir()) {
+            let homes = [install.clone(), install.join("Contents/Home")].into_iter().chain(jdk_homes(&install));
+            if let Some(jdk) = homes.filter_map(|p| jdk_at(&p)).find(|j| j.major == 21) {
+                return Some(jdk);
+            }
+        }
+    }
+    #[cfg(target_os = "macos")]
+    if let Some(jdk) =
+        jdk_at(Path::new("/Applications/Android Studio.app/Contents/jbr/Contents/Home")).filter(|j| j.major >= 17)
+    {
+        return Some(jdk);
+    }
+    installed.iter().filter(|j| j.major >= 17).min_by_key(|j| j.major.abs_diff(21)).cloned()
+}
+
 /// The JDK to run jdtls with: the first found that is new enough (`JAVA_HOME` wins).
 pub fn jdtls_runtime(jdks: &[Jdk], min_java: u32) -> Option<&Jdk> {
     jdks.iter().find(|j| j.major >= min_java && ide_core::java_runtime::supports_java_bundles(&j.home))

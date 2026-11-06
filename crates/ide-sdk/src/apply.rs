@@ -226,6 +226,21 @@ pub fn gradle_env(
     env
 }
 
+/// Reuse project and Gradle settings, the user's environment, or a local Gradle-managed JDK.
+pub fn android_gradle_env(root: &Path, settings: &Settings) -> std::collections::BTreeMap<String, String> {
+    let mut env = gradle_env(root, settings, Default::default());
+    if !env.contains_key("JAVA_HOME") {
+        let java_home = project_jdk(root, settings)
+            .map(|j| j.home)
+            .or_else(|| std::env::var_os("JAVA_HOME").map(PathBuf::from))
+            .or_else(|| crate::java::android_gradle_jdk(env.get("GRADLE_USER_HOME").map(Path::new)).map(|j| j.home));
+        if let Some(home) = java_home {
+            env.insert("JAVA_HOME".into(), home.to_string_lossy().into_owned());
+        }
+    }
+    env
+}
+
 /// Maven options from settings, placed before the goals: `-s <settings.xml>`
 /// and `-Dmaven.repo.local=<dir>`.
 pub fn maven_options(root: &Path, s: &Settings) -> Vec<String> {

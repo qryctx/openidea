@@ -7,9 +7,17 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
+if (gradle.parent != null) return
+
 def options = gradle.startParameter.projectProperties
 def variant = options.openAndroidVariant
-if (!(variant ==~ /[A-Za-z][A-Za-z0-9]*/)) throw new GradleException("Supply -PopenAndroidVariant=<variant>")
+if (!(variant ==~ /[A-Za-z][A-Za-z0-9_-]*/)) throw new GradleException("Supply -PopenAndroidVariant=<variant>")
+def application = options.openAndroidApplication
+if (application != null && !application.startsWith(":")) throw new GradleException("Supply a Gradle project path for -PopenAndroidApplication")
+def request = options.openAndroidIndexRequest
+if (request != null && (application == null || !(request ==~ /[0-9a-f]{32}/))) {
+    throw new GradleException("An IDE index request requires an application and a 32-digit lowercase hex token")
+}
 def jar = new File(options.openAndroidSupportDir ?: "", "build/libs/android-reference-index.jar")
 def reports = []
 def issueId = "OpenAndroidClassIndex"
@@ -17,16 +25,21 @@ def cap = variant.capitalize()
 
 gradle.rootProject { root ->
     def parent = root.projectDir.toPath().toRealPath()
-    ["build", "openandroidstudio", "variants"].each { component ->
+    def directories = ["build", "openandroidstudio", "variants"]
+    if (application != null) directories << application.getBytes(StandardCharsets.UTF_8).encodeHex().toString()
+    if (request != null) directories << ".requests"
+    directories.each { component ->
         parent = parent.resolve(component)
         if (Files.isSymbolicLink(parent)) throw new GradleException("Refusing to follow a symbolic link for the Android index directory: $parent")
     }
-    def target = parent.resolve("${variant}.json").toFile()
+    // IDE runs stage per request so a cancelled Gradle client cannot publish a late result.
+    def target = parent.resolve((request ?: variant) + ".json").toFile()
     if (Files.isSymbolicLink(target.toPath())) throw new GradleException("Refusing to follow a symbolic link for the Android index: $target")
     if (gradle.startParameter.taskNames.any { it in ["openAndroidIndex", ":openAndroidIndex"] }) {
         if (target.exists()) {
+            if (request != null) throw new GradleException("Android index request already exists: $target")
             def previous = new JsonSlurper().parse(target)
-            if (previous.schema != 1 || previous.variant != variant || !(previous.files instanceof Map)) {
+            if (previous.schema != 1 || previous.application != application || previous.variant != variant || !(previous.files instanceof Map)) {
                 throw new GradleException("Refusing to overwrite an unrelated file at $target")
             }
             Files.delete(target.toPath())
@@ -35,7 +48,7 @@ gradle.rootProject { root ->
     if (!jar.isFile()) throw new GradleException("Build the Android reference detector first (see android-support/README.md)")
     def index = root.tasks.register("openAndroidIndex") {
         group = "IDE"
-        description = "Index constructor calls resolved by Android lint for the selected variant"
+        description = "Index calls resolved by Android lint for the selected application variant"
         doLast {
             if (reports.empty) throw new GradleException("No Android application exposes variant '$variant'")
             if (reports.size() > 1) throw new GradleException("Multiple applications expose '$variant'; select one with -PopenAndroidApplication=:module")
@@ -93,6 +106,7 @@ gradle.rootProject { root ->
             }
             def data = [schema: 1, variant: variant, files: new TreeMap(files), incompleteMethodNames: incompleteMethodNames,
                         declarations: declarations.unique().sort { order(it) }, references: references.unique().sort { order(it) }]
+            if (application != null) data.application = application
             target.parentFile.mkdirs()
             def temp = Files.createTempFile(target.parentFile.toPath(), ".android-index-", ".tmp")
             try {
@@ -106,6 +120,7 @@ gradle.rootProject { root ->
     root.allprojects { p ->
         ["com.android.application", "com.android.library"].each { plugin ->
             p.pluginManager.withPlugin(plugin) {
+                if (plugin == "com.android.application" && application != null && p.path != application) return
                 p.dependencies.add("lintChecks", p.files(jar))
                 p.extensions.androidComponents.finalizeDsl { android ->
                     def lint = android.lint
@@ -125,7 +140,7 @@ gradle.rootProject { root ->
                     if (lint.baseline != null) throw new GradleException("Reference indexing currently requires a lint configuration without a baseline")
                     lint.xmlOutput = new File(p.layout.buildDirectory.get().asFile, "openandroidstudio/lint/${variant}.xml")
                 }
-                if (plugin == "com.android.application" && (!options.openAndroidApplication || p.path == options.openAndroidApplication)) {
+                if (plugin == "com.android.application") {
                     p.extensions.androidComponents.onVariants(p.extensions.androidComponents.selector().withName(variant), { v ->
                         if (v.name == variant) {
                             reports << new File(p.layout.buildDirectory.get().asFile, "openandroidstudio/lint/${variant}.xml")

@@ -8,6 +8,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:android": "tsc --noEmit && node scripts/build-android.ts",
+    "package:android:mac": "bash scripts/package-android-macos.sh",
     "preview": "vite preview",
     "tauri": "node scripts/tauri.ts",
     "test": "vitest run",

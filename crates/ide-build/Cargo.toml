@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 dunce.workspace = true
+blake3.workspace = true
 ide-core.workspace = true
 zip.workspace = true
 serde.workspace = true
@@ -14,6 +15,5 @@ serde_json.workspace = true
 specta.workspace = true
 tracing.workspace = true
 dirs.workspace = true
-
-[dev-dependencies]
+uuid.workspace = true
 tempfile.workspace = true

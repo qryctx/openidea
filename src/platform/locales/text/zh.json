@@ -6253,5 +6253,13 @@
   "Android index unavailable. Regenerate the variant index.": "找不到 Android 索引。请重新生成变体索引。",
   "Invalid Android index. Regenerate the variant index.": "Android 索引无效。请重新生成变体索引。",
   "Android sources changed. Save and regenerate the variant index.": "Android 源文件有改动。请保存并重新生成变体索引。",
-  "No indexed class or method at the caret. Use the default language service for other symbols.": "光标处没有已索引的类或方法。其他符号请使用默认语言服务。"
+  "No indexed class or method at the caret. Use the default language service for other symbols.": "光标处没有已索引的类或方法。其他符号请使用默认语言服务。",
+  "Android variant {variant} is no longer available. Select another variant.": "Android 变体 {variant} 已不可用。请另选变体。",
+  "Android project changed": "Android 工程已切换",
+  "Android sync cancelled. Reload Android reference variants to retry.": "Android 同步已取消。可重新加载 Android 引用变体以重试。",
+  "Cancel Android sync": "取消 Android 同步",
+  "Android project sync failed": "Android 工程同步失败",
+  "Syncing Android variants…": "正在同步 Android 变体…",
+  "Preparing {variant}…": "正在准备 {variant}…",
+  "Refreshing Android references…": "正在刷新 Android 引用…"
 }

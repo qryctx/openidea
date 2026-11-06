@@ -67,6 +67,8 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
         app::app_info,
         android::android_devices,
         android::android_logcat,
+        android::android_discover_variants,
+        android::android_index_variant,
         app::recent_projects,
         app::remove_recent_project,
         app::recent_project_groups,

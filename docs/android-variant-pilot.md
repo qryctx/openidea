@@ -1,6 +1,8 @@
 # OpenAndroidStudio: Android 变体查引用实验
 
-这个分支回答一个具体问题：同一个 Android 工程中，当两个 flavor 有同名调用方时，能否在不重启 IDE 的情况下，只查到当前变体真正解析到的 Java 或 Kotlin 调用？
+本文记录最初的手动索引试验和对应的签名包。[当前版本的自动工程同步与打包方法](android-project-sync.md)另有记录。
+
+这个试验回答一个具体问题：同一个 Android 工程中，当两个 flavor 有同名调用方时，能否在不重启 IDE 的情况下，只查到当前变体真正解析到的 Java 或 Kotlin 调用？
 
 ## 本机复现
 

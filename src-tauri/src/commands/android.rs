@@ -38,3 +38,88 @@ pub async fn android_logcat(
     state.end_request(request);
     result
 }
+
+use ide_build::android::{self, AndroidVariant};
+use std::collections::BTreeMap;
+use std::path::Path;
+use tauri::Window;
+
+// A cancelled window cannot keep writing to the snapshot another window is about to read.
+static GRADLE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+async fn sync<T: Send + 'static>(
+    state: &AppState,
+    window: &Window,
+    request: RequestId,
+    root: String,
+    not_android: IdeResult<T>,
+    work: impl FnOnce(&Path, &Path, &BTreeMap<String, String>, &ide_core::CancellationToken) -> IdeResult<T>
+    + Send
+    + 'static,
+) -> IdeResult<T> {
+    let label = window.label();
+    let project = state.project(label)?;
+    project.require_trust()?;
+    if project.light || project.root != Path::new(&root) || state.remote_dev.get(label).is_some() {
+        return Err(IdeError::invalid("Android sync requires the currently open local project"));
+    }
+    let cancel = state.begin_project_request(label, request);
+    let result = async {
+        let _guard = tokio::select! {
+            _ = cancel.cancelled() => return Err(IdeError::cancelled()),
+            lock = GRADLE.lock() => lock,
+        };
+        if state.remote_dev.get(label).is_some() || !std::sync::Arc::ptr_eq(&project, &state.project(label)?) {
+            return Err(IdeError::cancelled());
+        }
+        project.require_trust()?;
+        blocking(move || {
+            if cancel.is_cancelled() {
+                return Err(IdeError::cancelled());
+            }
+            if !android::is_android_project(&project.root, &cancel)? {
+                return not_android;
+            }
+            let mut env = ide_sdk::apply::android_gradle_env(&project.root, &project.settings.effective());
+            if std::env::var_os("ANDROID_HOME").is_none()
+                && std::env::var_os("ANDROID_SDK_ROOT").is_none()
+                && let Some(sdk) = ide_android::installed_sdk()
+            {
+                env.insert("ANDROID_HOME".into(), sdk.to_string_lossy().into_owned());
+            }
+            work(&project.root, &project.cache_dir, &env, &cancel)
+        })
+        .await
+    }
+    .await;
+    state.end_request(request);
+    result
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn android_discover_variants(
+    window: Window,
+    state: State<'_, AppState>,
+    request: RequestId,
+    root: String,
+) -> IdeResult<Vec<AndroidVariant>> {
+    sync(&state, &window, request, root, Ok(Vec::new()), android::discover).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn android_index_variant(
+    window: Window,
+    state: State<'_, AppState>,
+    request: RequestId,
+    root: String,
+    module: String,
+    variant: String,
+) -> IdeResult<String> {
+    let missing = IdeError::invalid("Expected an Android Gradle project with its own wrapper");
+    sync(&state, &window, request, root, Err(missing), move |root, cache, env, cancel| {
+        android::index_variant(root, cache, &module, &variant, env, cancel)
+    })
+    .await
+}

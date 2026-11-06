@@ -2,7 +2,7 @@
 """Check the public fixture against human-authored UTF-16 locations."""
 import hashlib
 import json
-import sys
+import argparse
 from pathlib import Path
 
 
@@ -20,12 +20,15 @@ def check_symbol(index, expected_decl, expected_refs, symbol, variant):
     return actual
 
 
-def verify(project):
+def verify(project, application=None):
     oracle = json.loads((project / "expected-usages.json").read_text())
+    snapshots = project / "build/openandroidstudio/variants"
+    if application is not None:
+        snapshots /= application.encode("utf-8").hex()
     for variant, expected in oracle["variants"].items():
-        index = json.loads((project / "build/openandroidstudio/variants" / (variant + ".json")).read_text())
-        if index["schema"] != 1 or index["variant"] != variant:
-            raise ValueError(f"Wrong variant in {variant}.json")
+        index = json.loads((snapshots / (variant + ".json")).read_text())
+        if index["schema"] != 1 or index["variant"] != variant or index.get("application") != application:
+            raise ValueError(f"Wrong application or variant in {variant}.json")
         for path, digest in index["files"].items():
             source = (project / path).resolve()
             if not source.is_relative_to(project) or hashlib.sha256(source.read_text(encoding="utf-8-sig").encode()).hexdigest() != digest:
@@ -50,4 +53,8 @@ def verify(project):
 
 if __name__ == "__main__":
     default = Path(__file__).resolve().parents[1] / "examples/android-variants"
-    verify((Path(sys.argv[1]) if len(sys.argv) > 1 else default).resolve())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("project", type=Path, default=default, nargs="?")
+    parser.add_argument("--application", help="Gradle application path for an IDE-generated index")
+    args = parser.parse_args()
+    verify(args.project.resolve(), args.application)

@@ -15,6 +15,8 @@ export const commands = {
 	 *  `clear` empties the device's buffers first.
 	 */
 	androidLogcat: (request: RequestId, serial: string, clear: boolean, onLines: Channel<LogcatLine[]>) => typedError<null, IdeError>(__TAURI_INVOKE("android_logcat", { request, serial, clear, onLines })),
+	androidDiscoverVariants: (request: RequestId, root: string) => typedError<AndroidVariant[], IdeError>(__TAURI_INVOKE("android_discover_variants", { request, root })),
+	androidIndexVariant: (request: RequestId, root: string, module: string, variant: string) => typedError<string, IdeError>(__TAURI_INVOKE("android_index_variant", { request, root, module, variant })),
 	recentProjects: () => __TAURI_INVOKE<RecentProject[]>("recent_projects"),
 	removeRecentProject: (path: string) => typedError<null, IdeError>(__TAURI_INVOKE("remove_recent_project", { path })),
 	/**  The welcome screen's project groups. */
@@ -1625,6 +1627,11 @@ export type AndroidDevice = {
 	/**  The device's own name from the build (`ro.product.device`). */
 	device: string | null,
 	transportId: string | null,
+};
+
+export type AndroidVariant = {
+	module: string,
+	name: string,
 };
 
 export type AppInfo = {

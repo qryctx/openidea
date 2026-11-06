@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
+selection=
+if [[ "${1:-}" == "--application" ]]; then
+    (( $# >= 4 )) || { echo "Usage: $0 [--application :module] <Android Gradle project> <variant> [<variant> ...]" >&2; exit 2; }
+    selection="-PopenAndroidApplication=$2"
+    shift 2
+fi
 if (( $# < 2 )); then
-    echo "Usage: $0 <Android Gradle project> <variant> [<variant> ...]" >&2
+    echo "Usage: $0 [--application :module] <Android Gradle project> <variant> [<variant> ...]" >&2
     exit 2
 fi
 support=$(cd "$(dirname "$0")" && pwd -P)
@@ -10,7 +16,7 @@ shift
 wrapper="$project/gradlew"
 "$wrapper" -p "$support" --console=plain --no-configuration-cache jar
 for variant in "$@"; do
-    "$wrapper" -p "$project" --console=plain --no-configuration-cache \
+    "$wrapper" -p "$project" --console=plain --no-configuration-cache --no-configure-on-demand \
         --init-script "$support/index.gradle" "-PopenAndroidSupportDir=$support" \
-        "-PopenAndroidVariant=$variant" openAndroidIndex
+        ${selection:+"$selection"} "-PopenAndroidVariant=$variant" :openAndroidIndex
 done

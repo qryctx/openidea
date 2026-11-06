@@ -12,7 +12,7 @@ interface Index {
   incompleteMethodNames?: string[];
 }
 
-export const validVariant = (v: string) => /^[A-Za-z][A-Za-z0-9]*$/.test(v);
+export const validVariant = (v: string) => /^[A-Za-z][A-Za-z0-9_-]*$/.test(v);
 const sourcePath = (p: string) =>
   !p.includes("\0") &&
   !/[\\:]/.test(p) &&
@@ -37,13 +37,14 @@ const site = (v: unknown): v is Site =>
   point(v.range.end) &&
   cmp(v.range.start, v.range.end) < 0;
 
-function parseIndex(text: string, variant: string): Index {
+function parseIndex(text: string, variant: string, application: string | null): Index {
   try {
     const i: unknown = JSON.parse(text);
     if (
       obj(i) &&
       i.schema === 1 &&
       i.variant === variant &&
+      (application === null ? i.application === undefined : i.application === application) &&
       (i.incompleteMethodNames === undefined ||
         (Array.isArray(i.incompleteMethodNames) && i.incompleteMethodNames.every((n) => typeof n === "string"))) &&
       obj(i.files) &&
@@ -62,40 +63,53 @@ function parseIndex(text: string, variant: string): Index {
 
 export const indexDir = (root: string) => root.replace(/[/\\]$/, "") + "/build/openandroidstudio/variants";
 
+export function moduleIndexPath(module: string, variant: string) {
+  const hex = Array.from(new TextEncoder().encode(module), (n) => n.toString(16).padStart(2, "0")).join("");
+  return "build/openandroidstudio/variants/" + hex + "/" + variant + ".json";
+}
+
+export class StaleAndroidSources extends Error {
+  constructor(readonly saved: boolean) {
+    super(tx("Android sources changed. Save and regenerate the variant index."));
+  }
+}
+
 export async function androidCallUsages(
   root: string,
   variant: string,
   caret: { path: string; line: number; col: number; word?: string | null },
   read: (path: string) => Promise<string>,
   dirty: (path: string) => boolean,
+  application: string | null = null,
 ): Promise<{ locations: Location[]; note: string }> {
   if (!validVariant(variant)) throw new Error(tx("Invalid Android index. Regenerate the variant index."));
   const prefix = root.replaceAll("\\", "/").replace(/\/$/, "") + "/";
   let raw: string;
   try {
-    raw = await read(indexDir(root) + "/" + variant + ".json");
+    raw = await read(
+      application === null ? indexDir(root) + "/" + variant + ".json" : prefix + moduleIndexPath(application, variant),
+    );
   } catch {
     throw new Error(tx("Android index unavailable. Regenerate the variant index."));
   }
-  const i = parseIndex(raw, variant);
+  const i = parseIndex(raw, variant, application);
   const entries = Object.entries(i.files);
-  const stale = () => new Error(tx("Android sources changed. Save and regenerate the variant index."));
   // Validate every fingerprint, including files with no matches: an edit there could add a usage.
   for (let n = 0; n < entries.length; n += 6) {
     await Promise.all(
       entries.slice(n, n + 6).map(async ([p, expected]) => {
         const full = prefix + p;
-        if (dirty(full)) throw stale();
+        if (dirty(full)) throw new StaleAndroidSources(false);
         let text: string;
         try {
           text = await read(full);
         } catch {
-          throw stale();
+          throw new StaleAndroidSources(true);
         }
         const normalized = text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
         const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(normalized));
         if (Array.from(new Uint8Array(digest), (n) => n.toString(16).padStart(2, "0")).join("") !== expected)
-          throw stale();
+          throw new StaleAndroidSources(true);
       }),
     );
   }

@@ -1,0 +1,25 @@
+// Enumerate enabled application variants from AGP for the current build.
+import groovy.json.JsonOutput
+import org.gradle.api.Action
+
+if (gradle.parent != null) return
+
+gradle.rootProject { root ->
+    def variants = Collections.synchronizedList([])
+    root.allprojects { project ->
+        project.pluginManager.withPlugin("com.android.application") {
+            def components = project.extensions.androidComponents
+            components.onVariants(components.selector().all(), { variant ->
+                variants << [module: project.path, name: variant.name]
+            } as Action)
+        }
+    }
+    root.tasks.register("openAndroidVariants") {
+        group = "IDE"
+        description = "List enabled Android application variants"
+        doLast {
+            def sorted = variants.sort(false) { a, b -> (a.module <=> b.module) ?: (a.name <=> b.name) }
+            println "OPENANDROIDSTUDIO_VARIANTS=" + JsonOutput.toJson(sorted)
+        }
+    }
+}

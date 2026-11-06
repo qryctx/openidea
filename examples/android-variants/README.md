@@ -14,7 +14,7 @@ The APKs appear under `app/build/outputs/apk/demo/debug` and `app/build/outputs/
 
 ## Check Find Usages
 
-From the IDE checkout, generate the two constructor indices with `android-support/index-variants examples/android-variants demoDebug fullDebug`. Open **examples/android-variants** itself in the fork. If the IDE was already open, run **Reload Android reference variants** via Find Action. Select the desired edition in the **Android reference variant** status button. This controls Find Usages for Java/Kotlin constructors and ordinary methods; it does not change the Gradle run configuration.
+Open **this directory** in OpenAndroidStudio and trust the example project. The IDE uses the project’s Gradle Wrapper to discover the available application variants. Select **demoDebug** or **fullDebug** from the **Android reference variant** status button. The selected variant’s index is prepared in the background. When the button shows the variant name, the index is ready. This selection controls Java/Kotlin Find Usages. The Gradle run configuration has its own selector.
 
 Start at either class declaration in `:contract`, then at its zero-argument `message()` declaration. Find usages with the declaration excluded. Check `demoDebug`, switch to `fullDebug`, then switch back to `demoDebug`. Each query should return exactly one constructor use or one call to the zero-argument method in the active flavor's app source set. Each caller also invokes `message(String)`, on the same line as `message()`, to check overload identity and precise selection.
 
@@ -27,14 +27,7 @@ Start at either class declaration in `:contract`, then at its zero-argument `mes
 
 ## Run the desktop acceptance check
 
-From the repository root, generate both variant indexes, then start the development application:
-
-```sh
-android-support/index-variants examples/android-variants demoDebug fullDebug
-pnpm dev:app
-```
-
-In a second terminal run `node android-support/verify-desktop.mjs`. The driver discovers this checkout's development window, selects demo → full → demo in the status bar, invokes Find Usages on each declaration, and compares the displayed results and source ranges against `expected-usages.json`. It writes twelve native screenshots and a JSON report to a printed temporary path. To choose the evidence directory, pass it as the first argument.
+From the repository root, start the development desktop application with `pnpm dev:app`. In a second terminal run `node android-support/verify-desktop.mjs`. The driver opens a fresh copy of this example with no generated indices. It checks the initial restricted workspace, trusts the copy, selects demo → full → demo from the status bar, and compares twelve Find Usages queries with the hand-written oracle. It also verifies automatic refresh when a Java caller is added and then removed. Screenshots and the JSON report are written to a printed temporary directory, or to the output directory given as the first argument.
 
 ## Wrapper provenance
 

@@ -4121,6 +4121,7 @@ dependencies = [
 name = "ide-build"
 version = "0.1.37"
 dependencies = [
+ "blake3",
  "dirs 6.0.0",
  "dunce",
  "ide-core",
@@ -4129,6 +4130,7 @@ dependencies = [
  "specta",
  "tempfile",
  "tracing",
+ "uuid",
  "zip",
 ]
 

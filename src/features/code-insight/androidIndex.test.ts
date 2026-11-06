@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { createHash } from "node:crypto";
 import { expect, it } from "vitest";
-import { androidCallUsages, indexDir } from "./androidIndex";
+import { androidCallUsages, indexDir, validVariant } from "./androidIndex";
 
 const root = "/sample";
 const cls = "lib/A.java";
@@ -142,4 +142,33 @@ it("explains an unresolved method name rather than reporting zero usages", async
       () => false,
     ),
   ).rejects.toThrow(/could not resolve all calls/);
+});
+
+it("reads the module-qualified snapshot and rejects an index generated for a different application", async () => {
+  const index = snapshots("demoDebug");
+  const paths: string[] = [];
+  await expect(
+    androidCallUsages(
+      root,
+      "demoDebug",
+      caret,
+      async (path) => {
+        paths.push(path);
+        return JSON.stringify({ ...index, application: ":other" });
+      },
+      () => false,
+      ":app",
+    ),
+  ).rejects.toThrow(/Invalid Android index/);
+  expect(paths).toEqual([root + "/build/openandroidstudio/variants/3a617070/demoDebug.json"]);
+});
+
+it("accepts AGP variant separators and rejects path-like variants", () => {
+  for (const v of ["internal_canaryDebug", "internal-canaryDebug"]) expect(validVariant(v)).toBe(true);
+  for (const v of ["../debug", "app/demo", "app:demo", "/debug"]) expect(validVariant(v)).toBe(false);
+});
+
+it("does not accept a module-owned snapshot as a legacy index", async () => {
+  const read = async () => JSON.stringify({ ...snapshots("demoDebug"), application: ":other" });
+  await expect(androidCallUsages(root, "demoDebug", caret, read, () => false)).rejects.toThrow(/Invalid Android index/);
 });

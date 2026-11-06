@@ -1,14 +1,29 @@
-// Run after index-variants and pnpm dev:app. Node 22.18+ (global WebSocket).
+// Run against pnpm dev:app; this driver opens a fresh copy without pre-generated indices. Node 22.18+ (global WebSocket).
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
+import { access, chmod, copyFile, mkdir, mkdtemp, readFile, realpath, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 const root = await realpath(fileURLToPath(new URL("../", import.meta.url)));
-const fixture = join(root, "examples/android-variants");
+const sample = "examples/android-variants";
+const fixture = await mkdtemp(join(await realpath(tmpdir()), "android-variants-"));
+const files = execFileSync("git", ["ls-files", "-z", "--", sample], { cwd: root, encoding: "utf8" })
+  .split("\0")
+  .filter(Boolean);
+for (const file of files) {
+  const destination = join(fixture, relative(sample, file));
+  await mkdir(dirname(destination), { recursive: true });
+  await copyFile(join(root, file), destination);
+}
+await chmod(join(fixture, "gradlew"), 0o755);
+const indexRoot = join(fixture, "build", "openandroidstudio", "variants");
+const missing = async (p) => assert.rejects(access(p), { code: "ENOENT" });
+await missing(indexRoot);
+console.log("Opening clean sample", fixture);
+
 const oracle = JSON.parse(await readFile(join(fixture, "expected-usages.json"), "utf8"));
 const out = process.argv[2] ?? (await mkdtemp(join(tmpdir(), "openidea-android-desktop-")));
 await mkdir(out, { recursive: true });
@@ -94,9 +109,9 @@ async function fixtureWindow() {
           if (dialog) {
             if (dialog.querySelector('input[type="checkbox"]:checked'))
               throw new Error("Refusing to trust a parent folder");
-            const approve = [...dialog.querySelectorAll("button")].find(
-              (b) => b.textContent.trim() === tx("Trust Project"));
-            approve?.click();
+            const preview = [...dialog.querySelectorAll("button")].find(
+              (b) => b.textContent.trim() === tx("Preview in Restricted Mode"));
+            preview?.click();
           }
           return useProject.getState().project?.root === target;
         `,
@@ -104,7 +119,7 @@ async function fixtureWindow() {
       if (ready) return label;
     }
     return null;
-  }, "the trusted fixture in its project window");
+  }, "the fresh fixture in its project window");
 }
 
 async function trustFixture() {
@@ -132,14 +147,37 @@ async function trustFixture() {
   );
 }
 
-async function choose(variant) {
-  await js(`
-    const { tx } = await import("/src/platform/i18n.ts");
-    const button = [...document.querySelectorAll("button[data-tooltip]")].find(
-      (b) => b.dataset.tooltip === tx("Android reference variant"));
-    if (!button) throw new Error("Missing Android variant picker. Generate the indexes first.");
-    button.click();
+async function syncStatus() {
+  return js(`
+    const button = document.querySelector("button[data-android-phase]");
+    return button ? {phase: button.dataset.androidPhase, label: button.textContent.trim()} : null;
   `);
+}
+
+async function checkFailure(status) {
+  if (status?.phase !== "failed") return;
+  const message = await js(`
+    document.querySelector('button[data-android-phase]').click();
+    return document.querySelector('[role="menu"]')?.textContent;
+  `);
+  throw new Error("Android project sync failed: " + (message || status.label));
+}
+
+async function choose(variant) {
+  await until(
+    async () => {
+      const status = await syncStatus();
+      await checkFailure(status);
+      if (!status || !["idle", "ready"].includes(status.phase)) return false;
+      return js(`
+      const button = document.querySelector('button[data-android-phase]');
+      button.click();
+      return true;
+    `);
+    },
+    "the automatically discovered variant picker",
+    180000,
+  );
   await until(
     () =>
       js(`
@@ -151,11 +189,17 @@ async function choose(variant) {
     "the " + variant + " menu item",
   );
   await until(
-    () =>
-      js(`return [...document.querySelectorAll("button[data-tooltip]")].some(
-    (b) => b.textContent.trim() === ${JSON.stringify(variant)});`),
-    "the selected variant",
+    async () => {
+      const status = await syncStatus();
+      await checkFailure(status);
+      return status?.phase === "ready" && status.label === variant;
+    },
+    "ready status for the selected variant",
+    600000,
   );
+  const indexed = JSON.parse(await readFile(join(indexRoot, "3a617070", variant + ".json"), "utf8"));
+  assert.equal(indexed.application, ":app");
+  assert.equal(indexed.variant, variant);
 }
 
 async function find(id, declaration, expected, variant) {
@@ -245,6 +289,75 @@ async function find(id, declaration, expected, variant) {
   return { variant, id, symbol, references: ranges, note: observation.note };
 }
 
+// Mutate only the private fixture copy. The native watcher must refresh the active variant on add and remove.
+async function verifySourceRefresh() {
+  const id = "dev.openide.sample.contract.KotlinGreeting#message()";
+  const original = oracle.memberVariants.demoDebug[id];
+  const uri = "app/src/demo/java/dev/openide/sample/contract/ZAddedCaller.java";
+  const line = "    static String read(KotlinGreeting g) { return g.message(); }";
+  const col = line.indexOf("message");
+  const added = { uri, range: { start: { line: 2, character: col }, end: { line: 2, character: col + 7 } } };
+  const path = join(fixture, uri);
+  const snapshot = join(indexRoot, "3a617070/demoDebug.json");
+  async function waitForEntry(present) {
+    await until(
+      async () => {
+        const sync = await syncStatus();
+        await checkFailure(sync);
+        if (sync?.phase !== "ready") return false;
+        try {
+          const index = JSON.parse(await readFile(snapshot, "utf8"));
+          return Object.hasOwn(index.files, uri) === present;
+        } catch (error) {
+          if (error.code === "ENOENT") return false;
+          throw error;
+        }
+      },
+      "automatic refresh after source " + (present ? "creation" : "deletion"),
+      180000,
+    );
+  }
+  await writeFile(path, ["package dev.openide.sample.contract;", "class ZAddedCaller {", line, "}", ""].join("\n"), {
+    flag: "wx",
+  });
+  try {
+    await waitForEntry(true);
+    await find(id, oracle.memberDeclarations[id], [...original, added], "demoDebug");
+  } finally {
+    await unlink(path);
+  }
+  await waitForEntry(false);
+  await find(id, oracle.memberDeclarations[id], original, "demoDebug");
+  return { variant: "demoDebug", addedResults: original.length + 1, restoredResults: original.length };
+}
+
+async function verifyModelRecovery() {
+  const script = join(fixture, "app/build.gradle.kts");
+  const original = await readFile(script, "utf8");
+  try {
+    await writeFile(script, original + '\nthrow GradleException("Android sync acceptance failure")\n');
+    await until(async () => (await syncStatus())?.phase === "failed", "surfacing a broken Gradle model", 180000);
+    assert.equal(
+      await js(`return !document.querySelector('[aria-label="Usage searches"] [role="tab"]');`),
+      true,
+      "Old results were cleared on model failure",
+    );
+  } finally {
+    await writeFile(script, original);
+  }
+  await until(
+    async () => {
+      const status = await syncStatus();
+      return status?.phase === "ready" && status.label === "demoDebug";
+    },
+    "automatic rediscovery after the Gradle model is repaired",
+    180000,
+  );
+  const id = "dev.openide.sample.contract.KotlinGreeting#message()";
+  await find(id, oracle.memberDeclarations[id], oracle.memberVariants.demoDebug[id], "demoDebug");
+  return { brokenBuild: "failed", oldResultsCleared: true, repairedBuild: "ready", selected: "demoDebug" };
+}
+
 try {
   windowLabel = await fixtureWindow();
   await rpc("set_window_state", { action: "focus", windowId: windowLabel });
@@ -253,6 +366,13 @@ try {
     return useProject.getState().project?.root;`),
     fixture,
   );
+  assert.equal(
+    await js(`const {useProject} = await import("/src/platform/project.ts");
+    return useProject.getState().project.trusted;`),
+    false,
+    "Fresh fixture must start restricted",
+  );
+  await missing(indexRoot);
   await trustFixture();
   const results = [];
   const switches = [];
@@ -263,6 +383,7 @@ try {
       return useUsages.getState().tabs.length;
     `);
     await choose(variant);
+    if (results.length === 0) await missing(join(indexRoot, "3a617070", "fullDebug.json"));
     if (previous !== null) {
       assert.ok(priorTabs > 0, "The previous variant must have search tabs");
       await until(
@@ -290,9 +411,26 @@ try {
       console.log(variant, id, result.references.map((l) => l.uri).join(", "));
     }
   }
+  const sourceRefresh = await verifySourceRefresh();
+  const modelRecovery = await verifyModelRecovery();
   await writeFile(
     join(out, "results.json"),
-    JSON.stringify({ app: status.identifier, trusted: true, switches, results }, null, 2) + "\n",
+    JSON.stringify(
+      {
+        app: status.identifier,
+        cleanFixture: true,
+        restrictedBeforeTrust: true,
+        trusted: true,
+        module: ":app",
+        indexedOnSelection: true,
+        sourceRefresh,
+        modelRecovery,
+        switches,
+        results,
+      },
+      null,
+      2,
+    ) + "\n",
   );
   console.log("Verified", results.length, "native Find Usages queries. Evidence:", out);
 } finally {

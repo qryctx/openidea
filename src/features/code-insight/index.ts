@@ -3,6 +3,8 @@
  * type hierarchies, and language server status. Editor-side LSP features live
  * in `editor/lsp`; the two talk only through actions.
  */
+import { onEditorEvent } from "@/editor/api";
+import { onIdeEvent } from "@/platform/ipc";
 import { registerActions } from "@/platform/actions";
 import { useProject } from "@/platform/project";
 import { registerOverlay, registerStatusItem, registerToolWindow } from "@/workbench/contributions";
@@ -19,7 +21,13 @@ import { ServerStatus } from "./ServerStatus";
 import { installWorkspaceEditUndo } from "./workspaceUndo";
 
 import { AndroidVariantStatus } from "./AndroidVariantStatus";
-import { discoverAndroidVariants, selectAndroidVariant, useAndroidVariants } from "./androidVariants";
+import {
+  androidFilesChanged,
+  cancelAndroidSync,
+  discoverAndroidVariants,
+  selectAndroidVariant,
+  useAndroidVariants,
+} from "./androidVariants";
 
 const EDITOR_WHEN = "textEditorActive && (editorFocus || popupOpen || !toolWindowFocus)";
 
@@ -34,15 +42,23 @@ function useErrorBadge(): number | null {
 
 export function activate(): () => void {
   let root = useProject.getState().project?.root ?? null;
-  void discoverAndroidVariants(root);
+  let trusted = useProject.getState().project?.trusted === true;
+  void discoverAndroidVariants(root, trusted);
   const unsubVariant = useAndroidVariants.subscribe((s, prev) => {
-    if (s.selected !== prev.selected) resetUsages();
+    if (
+      s.selected !== prev.selected ||
+      s.application !== prev.application ||
+      (s.selected && s.phase !== prev.phase && ["stale", "discovering"].includes(s.phase))
+    )
+      resetUsages();
   });
   const unsubProject = useProject.subscribe((s) => {
     const r = s.project?.root ?? null;
-    if (r !== root) {
+    const t = s.project?.trusted === true;
+    if (r !== root || t !== trusted) {
       root = r;
-      void discoverAndroidVariants(r);
+      trusted = t;
+      void discoverAndroidVariants(r, t);
       clearProblems();
       resetUsages();
       resetHierarchy();
@@ -52,8 +68,12 @@ export function activate(): () => void {
     unsubProject,
     unsubVariant,
     () => {
-      void discoverAndroidVariants(null);
+      void discoverAndroidVariants(null, false);
     },
+    onEditorEvent((e) => {
+      if (e.type === "docSaved") androidFilesChanged([e.path]);
+    }),
+    onIdeEvent("fsChanged", (e) => androidFilesChanged([...e.created, ...e.modified, ...e.removed])),
     installProblemsEvents(),
     installProblemDecorations(),
     installServerEvents(),
@@ -114,12 +134,21 @@ export function activate(): () => void {
         run: ({ arg }) => selectAndroidVariant(arg),
       },
       {
+        id: "android.cancelSync",
+        title: "Cancel Android sync",
+        hidden: true,
+        run: () => {
+          cancelAndroidSync();
+          resetUsages();
+        },
+      },
+      {
         id: "android.refreshVariants",
         title: "Reload Android reference variants",
         when: "projectOpen",
         run: () => {
           resetUsages();
-          return discoverAndroidVariants(root);
+          return discoverAndroidVariants(root, trusted);
         },
       },
       { id: "find.usages", title: "Find Usages", category: "Find", when: EDITOR_WHEN, run: () => findUsages() },

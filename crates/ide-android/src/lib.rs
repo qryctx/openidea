@@ -53,6 +53,11 @@ fn sdk_roots() -> Vec<PathBuf> {
     roots
 }
 
+/// Fallback for desktop launches without shell variables. AGP reads local.properties itself.
+pub fn installed_sdk() -> Option<PathBuf> {
+    sdk_roots().into_iter().find(|p| p.join("platforms").is_dir())
+}
+
 /// Locates the adb executable once per process; `OPENIDEA_ADB` overrides.
 pub fn adb_executable() -> Option<PathBuf> {
     static ADB: OnceLock<Option<PathBuf>> = OnceLock::new();
