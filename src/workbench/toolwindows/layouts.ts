@@ -4,6 +4,7 @@
  * shared by every project and kept in localStorage.
  */
 import { create } from "zustand";
+import { profileStorageKey } from "@/platform/productProfile";
 import {
   applyToolWindowLayout,
   defaultLayoutSnapshot,
@@ -12,7 +13,7 @@ import {
   type ToolWindowLayoutSnapshot,
 } from "./store";
 
-const STORAGE_KEY = "openidea.toolWindowLayouts.v1";
+const storageKey = () => profileStorageKey("openidea.toolWindowLayouts.v1");
 
 interface LayoutsState {
   /** Saved layouts by name, in save order. */
@@ -23,7 +24,7 @@ interface LayoutsState {
 
 function read(): LayoutsState {
   try {
-    const raw: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
+    const raw: unknown = JSON.parse(localStorage.getItem(storageKey()) ?? "null");
     if (!raw || typeof raw !== "object") return { layouts: [], active: null };
     const r = raw as { layouts?: unknown; active?: unknown };
     const layouts = Array.isArray(r.layouts)
@@ -43,7 +44,7 @@ export const useToolWindowLayouts = create<LayoutsState>(read);
 function write(next: LayoutsState) {
   useToolWindowLayouts.setState(next);
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    localStorage.setItem(storageKey(), JSON.stringify(next));
   } catch {
     /* storage unavailable */
   }

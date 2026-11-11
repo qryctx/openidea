@@ -1,5 +1,6 @@
 /** Registers the built-in pages as ordinary settings-page contributions and indexes their labels. */
 import { commands } from "@/platform/ipc";
+import { isV0Profile, settingsPageEnabled } from "@/platform/productProfile";
 import { UPDATES_PAGE } from "./updates";
 import { onLanguageListChanged } from "@/platform/languageList";
 import { registerSettingsPage, type SettingsPageContribution } from "@/workbench/contributions";
@@ -29,7 +30,17 @@ const BUILTIN_PAGES = [
   ...SSH_PAGES,
   ...LANGUAGE_PAGES,
 ];
-const specs = new Map<string, PageSpec>(BUILTIN_PAGES.map((p) => [p.id, p]));
+const enabledPages = BUILTIN_PAGES.filter((p) => settingsPageEnabled(p.id)).map((p): PageSpec => {
+  if (!isV0Profile() || p.id !== "vcs.commit") return p;
+  return {
+    ...p,
+    sections: p.sections?.map((section) => ({
+      ...section,
+      options: section.options.filter((option) => !("key" in option && option.key === "vcs.commit.nonModal")),
+    })),
+  };
+});
+const specs = new Map<string, PageSpec>(enabledPages.map((p) => [p.id, p]));
 
 export function builtinSpec(id: string): PageSpec | undefined {
   return specs.get(id);
@@ -58,9 +69,10 @@ function toContribution(spec: PageSpec): SettingsPageContribution {
 }
 
 export function registerBuiltinPages(): () => void {
-  const disposers = BUILTIN_PAGES.filter((spec) => spec !== UPDATES_PAGE).map((spec) =>
-    registerSettingsPage(toContribution(spec)),
-  );
+  const disposers = enabledPages
+    .filter((spec) => spec !== UPDATES_PAGE)
+    .map((spec) => registerSettingsPage(toContribution(spec)));
+  if (isV0Profile()) return () => disposers.forEach((d) => d());
   // Code Style › <Language> pages come from the backend's language list, which plugins change.
   let live = true;
   void commands

@@ -4,6 +4,9 @@ import clsx from "clsx";
 import { useProject } from "@/platform/project";
 import { lookup, t, useI18n } from "@/platform/i18n";
 import { commands, type MenuNode } from "@/platform/ipc";
+import { getAction, useActions } from "@/platform/actions";
+import { isV0Profile } from "@/platform/productProfile";
+import { parseRemoteLocation } from "@/platform/remote";
 import { usePlatform } from "@/platform/platformInfo";
 import { Icon, MenuList, Popup, type MenuItem } from "@/ui";
 import menuStyles from "@/ui/Menu.module.css";
@@ -19,8 +22,27 @@ function label(id: string, fallback: string): string {
 type Submenu = Extract<MenuNode, { kind: "submenu" }>;
 const isSubmenu = (n: MenuNode): n is Submenu => n.kind === "submenu";
 
+/** The native model also contains items owned by features not activated in this product. */
+export function profileMenuNodes(nodes: MenuNode[]): MenuNode[] {
+  if (!isV0Profile()) return nodes;
+  const out: MenuNode[] = [];
+  for (const node of nodes) {
+    if (node.kind === "placeholder" || (node.kind === "action" && !getAction(node.id))) continue;
+    if (node.kind === "action" && node.id === "file.openRecentProject" && node.arg && parseRemoteLocation(node.arg))
+      continue;
+    if (node.kind === "submenu") {
+      const children = profileMenuNodes(node.children);
+      if (children.length) out.push({ ...node, children });
+    } else if (node.kind !== "separator" || (out.length && out[out.length - 1]!.kind !== "separator")) {
+      out.push(node);
+    }
+  }
+  if (out[out.length - 1]?.kind === "separator") out.pop();
+  return out;
+}
+
 export function menuItems(nodes: MenuNode[]): MenuItem[] {
-  return nodes.map((n): MenuItem => {
+  return profileMenuNodes(nodes).map((n): MenuItem => {
     switch (n.kind) {
       case "separator":
         return { kind: "separator" };
@@ -73,7 +95,7 @@ export function onLoneAlt(target: Window, onAlt: () => void): () => void {
 
 async function loadMenus(): Promise<Submenu[]> {
   const model: MenuNode[] = await commands.menuModel().catch(() => []);
-  return model.filter(isSubmenu);
+  return profileMenuNodes(model).filter(isSubmenu);
 }
 
 type MainMenuProps = { onExpandedChange?: (expanded: boolean) => void };
@@ -85,6 +107,7 @@ export function MainMenu(props: MainMenuProps) {
 
 function MainMenuBar({ merged, onExpandedChange }: MainMenuProps & { merged: boolean }) {
   useI18n((s) => s.locale);
+  const actions = useActions((s) => (isV0Profile() ? s.actions : null));
   const [menus, setMenus] = useState<Submenu[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [open, setOpen] = useState<number | null>(null);
@@ -108,7 +131,7 @@ function MainMenuBar({ merged, onExpandedChange }: MainMenuProps & { merged: boo
     return () => {
       disposed = true;
     };
-  }, [merged]);
+  }, [merged, actions]);
   useEffect(() => {
     if (!merged || open === null) return;
     let disposed = false;

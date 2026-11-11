@@ -21,7 +21,8 @@ import {
 } from "@/platform/project";
 import { confirmProjectTrust } from "@/platform/projectTrust";
 import { ask } from "@/workbench/messages";
-import { connectRemote, isRemoteWindow } from "@/platform/remote";
+import { connectRemote, isRemoteWindow, parseRemoteLocation } from "@/platform/remote";
+import { featureEnabled } from "@/platform/productProfile";
 import { holdSplash } from "@/platform/splash";
 import { editorService, maybeEditorService, notifications } from "@/workbench/contributions";
 import { chooseProjectWindow } from "@/workbench/projectWindow";
@@ -40,6 +41,15 @@ function desktopOnly(): boolean {
   return true;
 }
 
+function unavailableLocation(path: string): boolean {
+  if (featureEnabled("remote-dev") || !parseRemoteLocation(path)) return false;
+  notifications().notify({
+    level: "warning",
+    title: "Remote development is unavailable in the v0 profile.",
+  });
+  return true;
+}
+
 function openFailed(path: string, e: unknown) {
   if (isCancelled(e)) return;
   notifications().notify({
@@ -52,6 +62,7 @@ function openFailed(path: string, e: unknown) {
 
 /** Opens project `path` in this window; true once it is this window's project. */
 async function openHere(path: string): Promise<boolean> {
+  if (unavailableLocation(path)) return false;
   if (!isRemoteWindow() && useProject.getState().project?.root === path) return true;
   if (!(await confirmLeaveProject())) return false;
   try {
@@ -134,6 +145,7 @@ export async function openPaths(
  * session. `files` then open in the project's editor.
  */
 export async function openProjectInWindow(path: string, newWindow: boolean, files: readonly string[] = []) {
+  if (unavailableLocation(path)) return;
   if (desktopOnly()) return;
   const s = useProject.getState();
   const inNew = newWindow || s.project !== null || s.lightEdit;
@@ -150,6 +162,7 @@ export async function openProjectInWindow(path: string, newWindow: boolean, file
  * project or LightEdit session, then `files` in its editor.
  */
 export async function openProjectWithPolicy(path: string, files: readonly string[] = []): Promise<void> {
+  if (unavailableLocation(path)) return;
   if (desktopOnly()) return;
   const { project: current, lightEdit } = useProject.getState();
   if (!current && !lightEdit) return openProjectInWindow(path, false, files);

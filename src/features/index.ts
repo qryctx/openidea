@@ -54,6 +54,7 @@ import { activate as agents, activateSettingsPages as agentsPages } from "./agen
 import { activate as vim, activateSettingsPages as vimPages } from "./vim";
 import { activate as ssh } from "./ssh";
 import { activate as remoteDev } from "./remote-dev";
+import { featureEnabled, isV0Profile } from "@/platform/productProfile";
 
 type Activate = () => void | (() => void);
 
@@ -119,7 +120,10 @@ function activateAll(what: string, list: Array<[string, Activate]>): () => void 
 }
 
 export function activateFeatures(): () => void {
-  return activateAll("feature", features);
+  return activateAll(
+    "feature",
+    features.filter(([name]) => featureEnabled(name)),
+  );
 }
 
 export { SettingsWindow } from "./settings";
@@ -146,6 +150,7 @@ export function activateComparisonWindowFeatures(parent: string): () => void {
  * deployment server, with the diff viewer but no workbench.
  */
 export function activateDeploymentWindowFeatures(parent: string): () => void {
+  if (isV0Profile()) throw new Error("Deployment is unavailable in the v0 profile.");
   return activateAll("deployment window", [
     ["locale", appLocale],
     ["settings", activateRuntimeSettings],
@@ -172,5 +177,8 @@ export function activateSettingsWindowFeatures(parent: string): () => void {
     ["vcs", vcsPages],
     ["github", githubPages],
   ];
-  return activateAll("settings pages", pages);
+  return activateAll(
+    "settings pages",
+    pages.filter(([name]) => name === "locale" || featureEnabled(name)),
+  );
 }

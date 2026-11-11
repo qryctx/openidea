@@ -7,6 +7,7 @@ import { create } from "zustand";
 import { call, commands, isTauri, type Settings } from "@/platform/ipc";
 import { loadSettings, useProject } from "@/platform/project";
 import { deepEqual, getAt, putAt, setAt, validateSettings, type ValidSettings } from "./schema";
+import { isV0Profile, settingsPageTarget } from "@/platform/productProfile";
 
 export type Scope = "global" | "project";
 
@@ -112,7 +113,7 @@ export function splitPageTarget(target: string): { pageId: string; focus: string
 export function openSettings(pageId?: string, opts: { newProjects?: boolean } = {}) {
   const s = useSettingsDialog.getState();
   const base = validateSettings(useProject.getState().settings);
-  const target = pageId ? splitPageTarget(pageId) : { pageId: s.pageId, focus: null };
+  const target = splitPageTarget(settingsPageTarget(pageId ?? s.pageId));
   useSettingsDialog.setState({
     open: true,
     projectStructureOpen: false,
@@ -133,6 +134,10 @@ export function openSettings(pageId?: string, opts: { newProjects?: boolean } = 
 }
 
 export function openProjectStructure(section?: string) {
+  if (isV0Profile()) {
+    openSettings();
+    return;
+  }
   if (useSettingsDialog.getState().projectStructureOpen) {
     if (section) selectProjectStructureSection(parseProjectStructureSection(section));
     return;
@@ -214,7 +219,7 @@ export function closeSettings() {
 
 /** Shows `pageId` (`page#focus` also selects `focus` on it). */
 export function selectPage(pageId: string) {
-  useSettingsDialog.setState(splitPageTarget(pageId));
+  useSettingsDialog.setState(splitPageTarget(settingsPageTarget(pageId)));
 }
 
 export function setQuery(query: string) {

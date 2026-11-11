@@ -23,6 +23,7 @@ import type { DragData } from "@/ui/pointerDrag";
 import type { TreeReorder } from "@/ui/Tree";
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
+import { settingsPageEnabled, toolWindowEnabled } from "@/platform/productProfile";
 
 export type ToolWindowAnchor = "left" | "right" | "bottom";
 
@@ -341,7 +342,8 @@ function register<K extends keyof Contributions>(
 }
 
 export const registerWorkbenchBanner = (c: WorkbenchBannerContribution) => register("workbenchBanners", c.id, c);
-export const registerToolWindow = (c: ToolWindowContribution) => register("toolWindows", c.id, c);
+export const registerToolWindow = (c: ToolWindowContribution) =>
+  toolWindowEnabled(c.id) ? register("toolWindows", c.id, c) : () => {};
 export const registerStatusItem = (c: StatusItemContribution) => register("statusItems", c.id, c);
 export const registerOverlay = (c: OverlayContribution) => register("overlays", c.id, c);
 
@@ -980,6 +982,7 @@ export function useSettingsForm(): SettingsForm {
 export const useSettingsPages = create<{ pages: Map<string, SettingsPageContribution> }>(() => ({ pages: new Map() }));
 
 export function registerSettingsPage(page: SettingsPageContribution): () => void {
+  if (!settingsPageEnabled(page.id)) return () => {};
   useSettingsPages.setState((s) => ({ pages: new Map(s.pages).set(page.id, page) }));
   return () =>
     useSettingsPages.setState((s) => {

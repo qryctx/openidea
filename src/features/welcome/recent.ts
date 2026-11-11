@@ -26,6 +26,7 @@ import { fuzzyMatch } from "@/ui";
 import { notifications } from "@/workbench/contributions";
 import { confirm } from "@/workbench/messages";
 import { openRemoteProject } from "@/workbench/projectWindow";
+import { featureEnabled } from "@/platform/productProfile";
 
 interface RecentState {
   projects: RecentProject[];
@@ -81,6 +82,7 @@ export async function loadRecent() {
 
 /** The recent remote projects (Remote Development) among the local ones, most recent first. */
 function withRemotes(local: RecentProject[]): RecentProject[] {
+  if (!featureEnabled("remote-dev")) return local.filter((p) => !parseRemoteLocation(p.path));
   const remote: RecentProject[] = recentRemotes().map((r) => ({
     path: remoteLocation(r.target, r.path),
     name: r.name,
@@ -126,6 +128,13 @@ function failure(e: unknown): { kind?: string; message: string } {
 
 /** Opens a project from the recent list; offers to remove entries whose folder is gone. */
 export async function openRecent(project: Pick<RecentProject, "path" | "name">): Promise<boolean> {
+  if (!featureEnabled("remote-dev") && parseRemoteLocation(project.path)) {
+    notifications().notify({
+      level: "warning",
+      title: "Remote development is unavailable in the v0 profile.",
+    });
+    return false;
+  }
   if (!isTauri()) {
     notifications().notify({
       level: "warning",

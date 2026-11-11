@@ -4,6 +4,7 @@
  * `ide-core::workflow_settings` defaults). Normalisation never throws.
  */
 import { useProject } from "./project";
+import { isV0Profile } from "./productProfile";
 import { DEFAULT_REMOTE, validateRemote, type RemoteSettings } from "./remoteSettings";
 
 export type UpdateMethod = "merge" | "rebase";
@@ -342,13 +343,13 @@ export function validateVcs(raw: unknown): VcsSettingsValid {
       combineStashAndShelf: bool(g.combineStashAndShelf, d.git.combineStashAndShelf),
     },
     commit: {
-      nonModal: bool(c.nonModal, d.commit.nonModal),
+      nonModal: isV0Profile() || bool(c.nonModal, d.commit.nonModal),
       clearInitialMessage: bool(c.clearInitialMessage, d.commit.clearInitialMessage),
-      analyzeCode: bool(c.analyzeCode, d.commit.analyzeCode),
+      analyzeCode: !isV0Profile() && bool(c.analyzeCode, d.commit.analyzeCode),
       checkTodo: bool(c.checkTodo, d.commit.checkTodo),
-      reformat: bool(c.reformat, d.commit.reformat),
-      optimizeImports: bool(c.optimizeImports, d.commit.optimizeImports),
-      cleanup: bool(c.cleanup, d.commit.cleanup),
+      reformat: !isV0Profile() && bool(c.reformat, d.commit.reformat),
+      optimizeImports: !isV0Profile() && bool(c.optimizeImports, d.commit.optimizeImports),
+      cleanup: !isV0Profile() && bool(c.cleanup, d.commit.cleanup),
       blankLineAfterSubject: bool(c.blankLineAfterSubject, d.commit.blankLineAfterSubject),
       limitSubject: bool(c.limitSubject, d.commit.limitSubject),
       subjectLimit: num(c.subjectLimit, d.commit.subjectLimit, L.messageLimit, true),

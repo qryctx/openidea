@@ -8,6 +8,7 @@
  * TabsState with new ids.
  */
 import { ipcPath } from "@/platform/paths";
+import { profileStorageKey } from "@/platform/productProfile";
 import type { EditorInput } from "@/workbench/contributions";
 import { initialTabsState, paneIds, type LayoutNode, type Pane, type Tab, type TabsState } from "./tabs";
 
@@ -199,7 +200,7 @@ export function restoreTabsState(session: EditorSession, fileKey: (path: string)
 export function loadSession(root: string): EditorSession | null {
   try {
     // Sessions saved under the backslash spelling of a Windows root are picked up too.
-    const raw = localStorage.getItem(STORAGE_PREFIX + root) ?? legacyWindowsSession(root);
+    const raw = localStorage.getItem(profileStorageKey(STORAGE_PREFIX + root)) ?? legacyWindowsSession(root);
     return raw ? parseSession(JSON.parse(raw)) : null;
   } catch {
     return null;
@@ -209,13 +210,16 @@ export function loadSession(root: string): EditorSession | null {
 function legacyWindowsSession(root: string): string | null {
   if (!/^[A-Za-z]:\//.test(root)) return null;
   const native = root.replace(/\//g, "\\");
-  return localStorage.getItem(STORAGE_PREFIX + native) ?? localStorage.getItem(STORAGE_PREFIX + "\\\\?\\" + native);
+  return (
+    localStorage.getItem(profileStorageKey(STORAGE_PREFIX + native)) ??
+    localStorage.getItem(profileStorageKey(STORAGE_PREFIX + "\\\\?\\" + native))
+  );
 }
 
 export function storeSession(root: string, session: EditorSession | null) {
   try {
-    if (session) localStorage.setItem(STORAGE_PREFIX + root, JSON.stringify(session));
-    else localStorage.removeItem(STORAGE_PREFIX + root);
+    if (session) localStorage.setItem(profileStorageKey(STORAGE_PREFIX + root), JSON.stringify(session));
+    else localStorage.removeItem(profileStorageKey(STORAGE_PREFIX + root));
   } catch {
     /* storage unavailable */
   }

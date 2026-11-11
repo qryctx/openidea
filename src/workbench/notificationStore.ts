@@ -6,6 +6,7 @@ import { buildToolRecovery } from "@/platform/buildToolRecovery";
 import { txTemplate } from "@/platform/i18n";
 import { useProject } from "@/platform/project";
 import type { NotificationService } from "./contributions";
+import { isV0Profile } from "@/platform/productProfile";
 
 export type NotificationLevel = "info" | "warning" | "error";
 
@@ -39,7 +40,7 @@ export const NOTIFICATION_GROUPS: ReadonlyArray<{ id: string; title: string }> =
   { id: "plugins", title: "Plugins" },
   { id: "updates", title: "IDE Updates" },
   { id: "distractionFree", title: "Distraction Free Mode" },
-];
+].filter((g) => !isV0Profile() || !["lsp", "tools", "plugins", "updates"].includes(g.id));
 
 export type NotificationDisplay = "balloon" | "sticky" | "none";
 

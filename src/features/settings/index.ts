@@ -48,6 +48,7 @@ import { activatePhpStatus } from "./languages/PhpStatus";
 import { nativeToAsciiAction } from "./nativeToAscii";
 import { isImeKey } from "@/platform/ime";
 import { trackIconThemePages } from "./iconThemePages";
+import { isV0Profile, settingsPageTarget } from "@/platform/productProfile";
 
 /** Settings-driven runtime state (zoom, fonts, theme) of a secondary window. */
 export const activateRuntimeSettings = trackRuntimeSettings;
@@ -57,7 +58,7 @@ export const SettingsWindow = lazyComponent(() => import("./window/SettingsWindo
 const LAUNCH_EVENT = "openidea://launch";
 
 /** Java's page first: JDK, Maven and the language server are what new projects most often need. */
-const NEW_PROJECTS_PAGE = "languages.java";
+const NEW_PROJECTS_PAGE = isV0Profile() ? "appearance" : "languages.java";
 
 function settingsActions(open: (page?: string, newProjects?: boolean) => void): Action[] {
   return [
@@ -99,6 +100,7 @@ function settingsActions(open: (page?: string, newProjects?: boolean) => void): 
 
 /** Native Settings window when the backend can make one, else the dialog. */
 async function showSettings(page?: string, newProjects = false) {
+  if (page) page = settingsPageTarget(page);
   if (isTauri()) {
     try {
       await call(commands.windowOpenSettings(page ?? null, newProjects, windowBackgroundHex()));
@@ -117,8 +119,8 @@ export function activate(): () => void {
   const disposers = [
     trackRuntimeSettings(),
     trackIconThemePages(),
-    activatePythonStatus(),
-    activatePhpStatus(),
+    isV0Profile() ? () => {} : activatePythonStatus(),
+    isV0Profile() ? () => {} : activatePhpStatus(),
     unloadBuiltinPages,
     registerOverlay({ id: "settings.dialog", component: LazySettingsDialog }),
     registerOverlay({ id: "settings.projectStructure", component: LazyProjectStructureDialog }),
@@ -126,16 +128,20 @@ export function activate(): () => void {
     registerActions(appearanceToggleActions()),
     registerActions(navigationBarActions()),
     registerActions(settingsActions((page, newProjects) => void showSettings(page, newProjects))),
-    registerActions([
-      {
-        id: "file.projectStructure",
-        title: "Project Structure…",
-        category: "File",
-        icon: "folder",
-        keywords: ["project structure", "sdk", "jdk", "modules", "libraries", "facets", "artifacts", "sources"],
-        run: ({ arg }) => openProjectStructure(typeof arg === "string" ? arg : undefined),
-      },
-    ]),
+    registerActions(
+      isV0Profile()
+        ? []
+        : [
+            {
+              id: "file.projectStructure",
+              title: "Project Structure…",
+              category: "File",
+              icon: "folder",
+              keywords: ["project structure", "sdk", "jdk", "modules", "libraries", "facets", "artifacts", "sources"],
+              run: ({ arg }) => openProjectStructure(typeof arg === "string" ? arg : undefined),
+            },
+          ],
+    ),
     activateFileTypes(),
     registerOverlay({
       id: "settings.assignShortcut",

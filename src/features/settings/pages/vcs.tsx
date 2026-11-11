@@ -16,6 +16,7 @@ import type { PageSpec } from "./spec";
 import { BoundToggle, Grid, Indented, RadioRow, TableEditor, ToggleNumber } from "./workflowControls";
 import styles from "./Workflow.module.css";
 import { tx } from "@/platform/i18n";
+import { isV0Profile } from "@/platform/productProfile";
 
 const L = WORKFLOW_LIMITS;
 
@@ -262,6 +263,9 @@ function MessageLimits() {
 }
 
 function CommitChecks() {
+  if (isV0Profile()) {
+    return <BoundToggle k="vcs.commit.checkTodo" label="Check TODO" hint="Looks for TODO and FIXME in added lines." />;
+  }
   return (
     <Grid
       left={
@@ -391,8 +395,10 @@ export const VCS_PAGES: PageSpec[] = [
         options: [
           {
             kind: "custom",
-            label: "Analyze code",
-            keywords: ["Check TODO", "Reformat code", "Optimize imports", "Cleanup", "before commit"],
+            label: isV0Profile() ? "Check TODO" : "Analyze code",
+            keywords: isV0Profile()
+              ? ["before commit"]
+              : ["Check TODO", "Reformat code", "Optimize imports", "Cleanup", "before commit"],
             component: CommitChecks,
           },
         ],
