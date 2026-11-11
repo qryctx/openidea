@@ -81,6 +81,59 @@ setExceptionBreakpoints；stopped/continued/breakpoint/initialized/terminated/ou
 setBreakpoints 请求先校验再替换旧断点；无有效行号的 synthetic/native 帧
 发 line=0、无 source、presentationHint=subtle，不谎报用户源码第 1 行。
 
+### 生命周期补验与修正（2026-11-11）
+
+针对 `29b1ebdc` 的两个具体缺陷补充实现，不重做 ART 探索，不操作手机：
+
+1. **attach 原子化**：host/port、sourceRoots 数组与每个真实目录、
+   classFilters 数组与每个非空字符串/受限通配符先校验到局部数据，再打开连接。
+   不再把非法请求的部分 roots 写入会话。连接建立后的 suspend/ClassPrepare/
+   VM metadata/事件线程启动若失败，只 dispose 本次 JDI 连接、清空未完成的会话
+   状态，仍返回原始失败；dispose 自身失败附加 suppressed error 并写 stderr，
+   不伪装成功、不退出目标进程。事件线程绑定它自己的 VM，不能在旧连接结束后
+   清掉后续重试的新连接。正常成功 attach 的独立 suspend hold、configurationDone
+   resume、step 语义不变。
+2. **已删除源文件清理**：记住已接收 DAP 路径的规范化绝对路径→真实 canonical
+   路径映射。空 setBreakpoints 优先使用已拥有的映射删除 JDI 请求，不要求文件
+   仍存在，并删除对应断点/路径别名记录；未知缺失路径的空列表是无断点的清理。
+   非空列表仍要求真实源文件，空白/非字符串/目录等无效输入仍明确失败。
+
+`tests\host.py` 在现有协议回归后增加两组真实 HotSpot 验证；
+`tests\spike\DebugTarget.java` 的测试专用 progress 模式用 stdin 新随机 token
+请求心跳，目标主线程跨过 work() 后回显该 token。**不是只检查 pid 存活，也
+不是读取已经缓存的旧 heartbeat**。
+
+非法输入覆盖空 filters、非字符串项、空字符串、非法通配符，以及 roots 的
+中途不存在路径、非字符串项、非数组和文件代替目录。每次拒绝后目标都能回答
+新心跳；随后同一个 adapter 接受有效 attach、命中断点，stackTrace 不会因
+前次 roots 泄漏而出现重复源码歧义。目标以 `suspend=n` 运行，避免把本来启动
+就暂停的 `suspend=y` 状态误当成拒绝请求的冻结。
+
+测试还通过一个仅在本机运行的透明 JDWP 转发器，向真实 JVM 的一次
+ClassPrepare EventRequest.Set 注入 NOT_IMPLEMENTED 回复。此时已经建立连接并
+调用 suspend；回归确认实际 VirtualMachine.Dispose 命令送到目标，目标回答新
+心跳，同一 adapter 使用 JVM 重新分配的监听端口成功重试，保留 JDI 原始错误。
+这覆盖连接建立后的回滚，而不只是前置参数校验。
+
+源文件测试只复制到临时目录：设置/命中副本断点，将副本重命名，再用原 DAP
+路径发送空列表。Windows 还用大小写变化的源路径验证 canonical 身份保留。
+删除后非空请求明确失败；空列表成功后连续三个新心跳都经过曾经的断点行，
+随后收到的停止原因是主动 pause 而非残留 breakpoint。disconnect 后再回答
+一个新心跳；真实仓库源码/Android 样例没有被删除。
+
+| 本轮验证                                            | 结果                                                                                                                                                                                                     |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 修正前 `python java\android-jdwp-dap\tests\host.py` | 退出 1；原协议用例通过，classFilters=[] 返回失败后新心跳超时，真实复现目标被冻结；finally 清理自有 JVM。                                                                                                 |
+| `python java\android-jdwp-dap\build.py`             | 退出 0；执行 `javac --add-modules jdk.jdi -encoding UTF-8 -Xlint:all -Werror -d java\android-jdwp-dap\build java\android-jdwp-dap\src\AndroidDap.java java\android-jdwp-dap\src\Json.java` 及 jar 打包。 |
+| 修正后 `python java\android-jdwp-dap\tests\host.py` | 退出 0；原协议完整回归、非法 attach/连接后回滚与重试/活心跳、删除源码清理/无再命中三组全部 PASS。                                                                                                        |
+| `git diff --check`                                  | 退出 0。                                                                                                                                                                                                 |
+
+本轮没有新增依赖/调试功能、Rust/Tauri 改动、手机操作、push 或发布。
+既有 ART 成功证据保持为前一轮 USB 测量，没有把 host 补验冒充新真机测试。
+剩余边界：断线导致 dispose 本身失败只能明确报告；未曾接收且已经失效的
+symlink 别名无法推断原 canonical 文件；非空断点的逐类 JDI 安装失败仍不是
+完整回滚事务。设备拔出、取消、类卸载等生产化限制仍见后文。
+
 ## 真机第二阶段（完成）
 
 检测时只有一台已授权物理设备；不在文档/提交中记录设备标识。

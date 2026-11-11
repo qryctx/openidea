@@ -18,6 +18,7 @@ public final class AndroidDap {
     private final Map<Integer, StackFrame> frames = new HashMap<>();
     private final Map<Integer, Object> handles = new HashMap<>();
     private final Map<String, List<LineBreakpoint>> breakpoints = new LinkedHashMap<>();
+    private final Map<Path, String> breakpointPaths = new HashMap<>();
     private final List<Path> roots = new ArrayList<>();
     private final Set<String> warned = new HashSet<>();
     private final Object state = new Object();
@@ -76,32 +77,58 @@ public final class AndroidDap {
         }
         if (command.equals("attach")) {
             if (vm != null) throw new IllegalStateException("Already attached");
-            String host = (String) args.getOrDefault("hostName", "127.0.0.1");
+            String host = stringArgument(args.getOrDefault("hostName", "127.0.0.1"), "hostName");
             if (!host.equals("127.0.0.1") && !host.equals("localhost"))
                 throw new IllegalArgumentException("Use a loopback adb forward");
             int port = Json.integer(args, "port");
             if (port < 1 || port > 65535) throw new IllegalArgumentException("Invalid port");
-            for (Object root : Json.array(args.getOrDefault("sourceRoots", List.of())))
-                roots.add(Path.of((String) root).toRealPath());
+            var sourceRoots = new ArrayList<Path>();
+            for (Object root : Json.array(args.getOrDefault("sourceRoots", List.of()))) {
+                Path path = Path.of(stringArgument(root, "sourceRoot")).toRealPath();
+                if (!Files.isDirectory(path)) throw new IllegalArgumentException("sourceRoot must be a directory: " + path);
+                sourceRoots.add(path);
+            }
+            var filters = new ArrayList<String>();
+            for (Object value : Json.array(args.getOrDefault("classFilters", List.of("*")))) {
+                String filter = stringArgument(value, "classFilter");
+                int star = filter.indexOf('*');
+                if (star >= 0 && (star != filter.lastIndexOf('*') || (star != 0 && star != filter.length() - 1)))
+                    throw new IllegalArgumentException("classFilter permits only one leading or trailing wildcard: " + filter);
+                filters.add(filter);
+            }
+            if (filters.isEmpty()) throw new IllegalArgumentException("classFilters must not be empty");
             AttachingConnector connector = Bootstrap.virtualMachineManager().attachingConnectors().stream()
                     .filter(c -> c.name().equals("com.sun.jdi.SocketAttach")).findFirst().orElseThrow();
             var options = connector.defaultArguments();
             options.get("hostname").setValue(host);
             options.get("port").setValue(Integer.toString(port));
             options.get("timeout").setValue("10000");
-            vm = connector.attach(options);
-            // VMStart may be resumed by the event pump; this separate hold protects setup.
-            vm.suspend();
-            var filters = Json.array(args.getOrDefault("classFilters", List.of("*")));
-            if (filters.isEmpty()) throw new IllegalArgumentException("classFilters must not be empty");
-            for (Object filter : filters) {
-                var prepare = vm.eventRequestManager().createClassPrepareRequest();
-                prepare.addClassFilter((String) filter);
-                prepare.setSuspendPolicy(EventRequest.SUSPEND_ALL);
-                prepare.enable();
+            VirtualMachine target = connector.attach(options);
+            try {
+                // VMStart may be resumed by the event pump; this separate hold protects setup.
+                target.suspend();
+                for (String filter : filters) {
+                    var prepare = target.eventRequestManager().createClassPrepareRequest();
+                    prepare.addClassFilter(filter);
+                    prepare.setSuspendPolicy(EventRequest.SUSPEND_ALL);
+                    prepare.enable();
+                }
+                var body = Map.of("vmName", target.name(), "vmVersion", target.version());
+                clearSessionState();
+                roots.addAll(sourceRoots);
+                vm = target;
+                new Thread(() -> pump(target), "jdi-events").start();
+                return body;
+            } catch (Exception | Error failure) {
+                if (vm == target) vm = null;
+                clearSessionState();
+                try { target.dispose(); }
+                catch (Exception cleanup) {
+                    failure.addSuppressed(cleanup);
+                    System.err.println("Attach rollback failed: " + cleanup);
+                }
+                throw failure;
             }
-            new Thread(this::pump, "jdi-events").start();
-            return Map.of("vmName", vm.name(), "vmVersion", vm.version());
         }
         if (vm == null && !command.equals("disconnect")) throw new IllegalStateException("Not attached");
         return switch (command) {
@@ -169,9 +196,24 @@ public final class AndroidDap {
     }
 
     private Object setBreakpoints(Map<String, Object> args) throws Exception {
-        String path = Path.of((String) Json.object(args.get("source")).get("path")).toRealPath().toString();
+        Path requestedPath = Path.of(stringArgument(Json.object(args.get("source")).get("path"), "source.path"))
+                .toAbsolutePath().normalize();
+        List<?> requested = Json.array(args.getOrDefault("breakpoints", List.of()));
+        String path;
+        if (requested.isEmpty() && breakpointPaths.containsKey(requestedPath)) {
+            path = breakpointPaths.get(requestedPath);
+        } else {
+            try {
+                Path real = requestedPath.toRealPath();
+                if (!Files.isRegularFile(real)) throw new IllegalArgumentException("source.path must be a file: " + real);
+                path = real.toString();
+            } catch (NoSuchFileException missing) {
+                if (!requested.isEmpty()) throw missing;
+                path = requestedPath.toString();
+            }
+        }
         var list = new ArrayList<LineBreakpoint>();
-        for (Object item : Json.array(args.getOrDefault("breakpoints", List.of()))) {
+        for (Object item : requested) {
             var bp = Json.object(item);
             for (String unsupported : List.of("condition", "hitCondition", "logMessage"))
                 if (bp.containsKey(unsupported)) throw new UnsupportedOperationException(unsupported);
@@ -184,9 +226,32 @@ public final class AndroidDap {
         var manager = vm.eventRequestManager();
         manager.deleteEventRequests(manager.breakpointRequests().stream()
                 .filter(r -> oldIds.contains(r.getProperty("id"))).toList());
-        breakpoints.put(path, list);
-        for (ReferenceType type : vm.allClasses()) if (candidate(type) && type.isPrepared()) install(type, false);
+        if (list.isEmpty()) {
+            breakpoints.remove(path);
+            String clearedPath = path;
+            breakpointPaths.values().removeIf(value -> value.equals(clearedPath));
+        } else {
+            breakpoints.put(path, list);
+            breakpointPaths.put(requestedPath, path);
+            for (ReferenceType type : vm.allClasses()) if (candidate(type) && type.isPrepared()) install(type, false);
+        }
         return Map.of("breakpoints", list.stream().map(LineBreakpoint::body).toList());
+    }
+
+    private static String stringArgument(Object value, String name) {
+        if (!(value instanceof String text) || text.isBlank())
+            throw new IllegalArgumentException(name + " must be a nonblank string");
+        return text;
+    }
+
+    private void clearSessionState() {
+        configured = false;
+        roots.clear();
+        threads.clear();
+        breakpoints.clear();
+        breakpointPaths.clear();
+        warned.clear();
+        invalidate();
     }
 
     private boolean candidate(ReferenceType type) {
@@ -238,14 +303,12 @@ public final class AndroidDap {
         }
     }
 
-    private void pump() {
+    private void pump(VirtualMachine target) {
         try {
-            while (!closed) {
-                VirtualMachine target = vm;
-                if (target == null) return;
+            while (!closed && vm == target) {
                 EventSet events = target.eventQueue().remove();
                 synchronized (state) {
-                    if (closed || vm == null) return;
+                    if (closed || vm != target) return;
                     boolean stop = false;
                     for (Event event : events) {
                         if (event instanceof ClassPrepareEvent prepare) install(prepare.referenceType(), true);
@@ -275,13 +338,15 @@ public final class AndroidDap {
             }
         } catch (VMDisconnectedException e) {
             synchronized (state) {
-                if (!closed && vm != null) { event("terminated", Map.of()); vm = null; }
+                if (!closed && vm == target) { event("terminated", Map.of()); vm = null; }
             }
         } catch (Exception e) {
             synchronized (state) {
-                warn("JDI event pump failed: " + e);
-                detach();
-                event("terminated", Map.of());
+                if (vm == target) {
+                    warn("JDI event pump failed: " + e);
+                    detach();
+                    event("terminated", Map.of());
+                }
             }
         }
     }

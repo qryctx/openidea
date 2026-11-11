@@ -14,6 +14,16 @@ public class DebugTarget {
         return result;
     }
     public static void main(String[] args) throws Exception {
+        if (args.length > 0 && args[0].equals("progress")) {
+            var input = new java.io.BufferedReader(new java.io.InputStreamReader(System.in));
+            var target = new DebugTarget();
+            int iteration = 0;
+            while (true) {
+                target.work(iteration++);
+                if (System.in.available() > 0) System.out.println("HEARTBEAT:" + input.readLine());
+                Thread.sleep(50);
+            }
+        }
         new DebugTarget().work(3);
         System.out.println("READY");
         while (true) Thread.sleep(100);
