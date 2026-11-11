@@ -27,6 +27,8 @@
 
 **已执行**：git baseline/status、文件/行号静态核对；Python 标准库解析 Cargo/TOML 与 pnpm package headings；逐版本公共 crates.io/npm 元数据查询（失败保留为待审核）；提交的三个 Java JAR ZIP/manifest/类路径/SHA-256 检查；官方 SDK terms/Android 品牌/Kotlin LSP/JDT LS/适配器源码许可证只读查询；文档结构/引用范围和 git diff 检查。
 
-**未执行**：cargo/pnpm install、构建、GUI、cargo tree/deny、knip、真机四支柱闭环、真实安装包解包、动态下载 JAR/SDK、网络运行采样。精确待执行命令和真机门禁列在 [功能清单](feature-inventory.md)。未改任何运行行为，未 push、未开 PR、未读取或生成签名私钥。
+**提交钩子副作用（已核实，本轮例外）**：首次本地 `git commit` 自动触发 pnpm 依赖恢复（334 个包来自本机缓存，输出 downloaded=0；锁文件未变），随后 `pnpm lint-staged` / `oxfmt --no-error-on-unmatched-pattern` 通过。未主动安排依赖安装；该行为不符合原先“不安装依赖”的预期，交付时向协调者明确报告。源码侧只有四份文档提交，没有产品/配置/CI/锁文件变化。钩子注册证据：`package.json:36`–`package.json:42`；实际恢复以提交命令输出为证据。
+
+**未执行**：Rust 工具链命令、产品构建、GUI、cargo tree/deny、knip、真机四支柱闭环、真实安装包解包、动态下载 JAR/SDK、网络运行采样。精确待执行命令和真机门禁列在 [功能清单](feature-inventory.md)。未改任何运行行为，未 push、未开 PR、未读取或生成签名私钥。
 
 **待审核**：实际发行二进制许可/源码提供、所选 DAP/JDT 二进制、正式名称与分发平台、独立更新/插件签名治理；缺注册表许可字段或 HTTP 429 的条目须补证。延期内容不阻断本轮静态文档交付，也不因此获得发布授权。本轮不能解除发布门禁，不能宣称 Android 四支柱已经可用。
