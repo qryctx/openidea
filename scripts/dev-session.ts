@@ -17,6 +17,7 @@ export interface DevSession {
   identifier: string;
   pid: number;
   devUrl?: string;
+  profile?: "default" | "v0";
 }
 
 export function preferredVitePort(identifier: string): number {
