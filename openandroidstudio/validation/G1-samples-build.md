@@ -172,29 +172,87 @@ adb -s <device> uninstall <pkg>
 
 ## 5. Windows Gradle 取消实验
 
+### 初次控制台信号（历史结果，不重复执行）
+
+初次驱动使用真实 Gradle 8.14.6、专用缓存、`--no-daemon`；临时 init script
+注册 30 秒 sleep 任务，观察执行标记后向自有进程组发送 CTRL_BREAK_EVENT。
+**实测失败**：只触发 JVM Full thread dump；请求后 27.984 s 任务自行成功完成，
+Gradle 退出 0。信号送达、客户端退出或清理完成都不能单独代表取消通过。
+原 `g1-lite-cancel` 日志保留，后续没有重跑 CTRL_BREAK。
+
+### M2 补充：现有 PID 树终止策略（2026-11-11）
+
 ```powershell
-python fixtures\android\cancel-probe.py --evidence "$env:TEMP\oas-cancel"
+python fixtures\android\cancel-probe.py --mode both --repeats 2 --evidence "$env:TEMP\oas-cancel-first"
+python fixtures\android\cancel-probe.py --mode both --repeats 2 --evidence "$env:TEMP\oas-cancel-rerun"
 ```
 
-真实 Gradle 8.14.6、专用缓存、`--no-daemon`；通过临时 init script 注册一个
-30 秒 sleep 任务，观察到任务执行标记后，向**自有新进程组**发送 CTRL_BREAK_EVENT。
-不是模型桥/Tooling API 测试，也不是前端 Stop 按钮的测试。
+**源码确认**：`crates/ide-build/src/process.rs` 的取消分支调用
+`ide_core::process::kill_tree`，然后返回 Cancelled；
+`crates/ide-core/src/process.rs` 在 Windows 不创建 Unix 式进程组，
+以 `CREATE_NO_WINDOW` 启动，捕获子孙进程及其创建时间/handle，
+有子进程才执行 `taskkill /T /F /PID <根 PID>`，等待已捕获子孙最多 5 秒，
+再由持有 Child 的调用方终止并回收根进程。无子进程时省略 taskkill。
 
-**实测失败**：信号送达，却只触发 JVM Full thread dump。5 秒内没有停止；
-请求后 **27.984 s**，任务自行成功完成、Gradle 退出 **0**。
-不能把“发出了信号”或驱动退出 0（测量完成）视为“构建已取消”。
-任务自然完成后扫描命令行含专用 `oas-gh` 的 Java 进程，没有残留；
-这是最终清理状态，不是取消后 5 秒内已经无 daemon。
-未运行 `gradle --stop`，未按进程名 kill，也未修改用户 Android Studio 的 daemon。
+当前 Python 驱动以标准库 ctypes 镜像上述 Toolhelp 快照、OpenProcess/
+GetProcessTimes/WaitForSingleObject 及精确 PID taskkill，不依赖 MSVC、新包或模型桥。
+不改 Rust/前端，不启动或接触 adb。每次运行在专用缓存下建立新的私有 Gradle
+user home 与可删除工程，任何实验 daemon 必须先证明属于自己启动的客户端。
+所有权无法证明即失败并停止，不因目录名、进程名或 guessed PID 终止资源。
 
-**推断/待设计**：将来 IDE 停止构建必须区分请求取消、实际构建停止、清理完成；
-不能依赖 Windows CTRL_BREAK。按自有进程树精确终止或其他可取消 Gradle 通道
-应由运行/调试实现验证。本轮不再为此新建 JVM 模型桥。
+可删除工程的真实 Gradle task 每 250 ms 追加持久化心跳（运行 token、JVM PID、
+递增序号、时间）；正常完成需要 120 次，即约 30 秒。
+睡眠若被中断，先记录 `INTERRUPTED` 再抛出异常，不能吞异常继续工作。
+在至少五次心跳后请求取消，保存请求 UTC 时间和 monotonic 计时。
+逐用例记录客户端树、task JVM 是否属于该树、创建时间、taskkill 退出码、
+客户端反馈时间/退出码、实际工作停止证据和上界。
+
+**验收不偷换**：不是“客户端退出即通过”，也不是“心跳短暂不变即通过”。
+只有 task JVM 的保留 handle 已 signalled（进程确实退出），或任务明确记录
+`InterruptedException`，才得到工作停止上界；反馈和工作停止都需 ≤5 秒，
+客户端须非零退出，taskkill 须成功。额外观察一秒确认没有继续追加工作。
+5 秒预算没有提高；`workStopBoundSeconds=null`、失败、残留或输入改变都会非零退出。
+
+预热模式先让 warm task 成功完成，证明 daemon 是 warm 客户端的子孙并保留 handle；
+随后使用**不同的新客户端**，确认实际 task JVM 的 PID/创建时间就是该 daemon。
+**实测**该 task JVM 不在新客户端树内，第一次树终止没有直接杀它；
+daemon 日志出现 `client disconnection detected, canceling the build`，
+任务追加 `INTERRUPTED`，证明 Gradle 因客户端断开而停止实际任务。
+等取消观测结束后，才对已证明独享、仍存活的 daemon 做显式 PID 清理。
+
+| 独立执行 / 用例      | 客户端反馈 | 实际工作停止上界 | 客户端退出码 | 停止证据               | 后续 daemon 清理 |
+| -------------------- | ---------- | ---------------- | ------------ | ---------------------- | ---------------- |
+| 首次 / no-daemon 1   | 0.468 s    | 0.484 s          | 1            | task JVM handle 已退出 | 无需             |
+| 首次 / warm-daemon 1 | 0.281 s    | 0.359 s          | 1            | 任务记录中断           | 0.329 s          |
+| 首次 / no-daemon 2   | 0.266 s    | 0.281 s          | 1            | task JVM handle 已退出 | 无需             |
+| 首次 / warm-daemon 2 | 0.281 s    | 0.297 s          | 1            | 任务记录中断           | 0.266 s          |
+| 重跑 / no-daemon 1   | 0.140 s    | 0.140 s          | 1            | task JVM handle 已退出 | 无需             |
+| 重跑 / warm-daemon 1 | 0.125 s    | 0.172 s          | 1            | 任务记录中断           | 0.094 s          |
+| 重跑 / no-daemon 2   | 0.094 s    | 0.094 s          | 1            | task JVM handle 已退出 | 无需             |
+| 重跑 / warm-daemon 2 | 0.062 s    | 0.125 s          | 1            | 任务记录中断           | 0.094 s          |
+
+**实测通过**：两条命令均退出 0；八个用例的取消及清理都通过。
+每个用例清理后所有已保留的自有进程 handle 均已退出，心跳不再增加；
+最终私有 home 的 daemon 扫描为空，两次 `fixtureInputsUnchanged=true`。
+临时工程/cache home 均清除，没有改动三个样例的源码、APK、配置或 metadata。
+没有执行 `gradle --stop`、按名称 kill、SDK 修改或共享 daemon 清理。
+第一次 taskkill 的本地编码日志在重跑前改用 Windows OEM code page 解码，
+不是改变取消策略或阈值。
+
+**实现选择**：保留现有自有客户端 PID 树终止；不引入 JVM 桥或新生产架构。
+单次 daemon 用例通过直接结束 task JVM 提供更强的隔离，
+预热 daemon 用例通过断连触发 Gradle 的中断处理。显式 daemon 清理是实验收尾，
+不是将“取消时工作仍继续”掩盖为成功。
+本证据只覆盖可处理中断的持久心跳 Gradle task；无响应 native 工具、
+忽略中断的插件或额外外部 worker 仍未验证，不据此保证所有 AGP 工作都可 5 秒终止。
+**真实原生 IDE Stop 按钮、CancellationToken → UI 状态反馈和 native build 仍未验收**；
+本次不需要 MSVC 的宿主机回归不能替代它们。
 
 ## 6. 门槛结论、日志与后续使用
 
 **通过**：一套官方兼容范围内的工具链，F1–F3 原生 debug 构建，
 三个 host 运行合同与真机安装/启动/Logcat/卸载；标记行及局部变量调试信息存在。
+补充通过现有 Windows PID 树策略在单次/预热 daemon 下的八次宿主机取消回归。
 **部分**：Windows 中文路径需要用户可见的显式 AGP 覆盖；仅本组最小工程实测通过。
 **未通过/未验证**：CTRL_BREAK 取消；IDE 内真实断点、单步、跨模块栈、变量与 lambda
 展示；其他手机/API、installDebug 任务、splits/flavors、release/minify、
@@ -212,4 +270,6 @@ python fixtures\android\cancel-probe.py --evidence "$env:TEMP\oas-cancel"
 `g1-lite-builds`（逐工程 stdout + 命令/退出码/耗时 JSON）、
 `g1-lite-run`（host contracts、serial 脱敏 adb 命令/输出、十次循环结果）、
 `g1-lite-unicode-default` / `g1-lite-unicode-override`、`g1-lite-cancel`
-（实际线程转储与取消耗时）。缓存和临时 Unicode 复制工程不属于交付代码。
+（历史线程转储与取消耗时），以及 `m2-pid-cancel` / `m2-pid-cancel-rerun`
+（逐例心跳、请求时间、进程身份、停止上界、分开的清理结果与重跑 daemon 日志）。
+缓存和临时复制/取消工程不属于交付代码。
