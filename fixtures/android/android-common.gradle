@@ -1,0 +1,19 @@
+android {
+    compileSdk = gradle.ext.fixtureToolchain.compileSdk
+    buildToolsVersion = gradle.ext.fixtureToolchain.buildTools
+    defaultConfig {
+        minSdk = 23
+        if (project.plugins.hasPlugin('com.android.application')) {
+            targetSdk = 36
+            versionCode = 1
+            versionName = '1.0'
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+    buildFeatures { buildConfig = true }
+    buildTypes { debug { debuggable = true } }
+}

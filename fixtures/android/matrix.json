@@ -1,0 +1,10 @@
+{
+  "conservative": {
+    "agp": "8.13.2",
+    "gradle": "8.14.6",
+    "kotlin": "2.3.21",
+    "jdk": 21,
+    "compileSdk": 36,
+    "buildTools": "36.0.0"
+  }
+}

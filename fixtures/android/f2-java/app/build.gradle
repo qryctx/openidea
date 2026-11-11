@@ -1,0 +1,6 @@
+apply plugin: 'com.android.application'
+apply from: '../../android-common.gradle'
+android {
+    namespace = 'dev.openandroid.samples.java'
+    defaultConfig { applicationId = namespace }
+}

@@ -1,0 +1,25 @@
+import groovy.json.JsonSlurper
+
+def name = providers.gradleProperty('toolchain').getOrElse('conservative')
+def matrix = new JsonSlurper().parse(new File(settingsDir.parentFile, 'matrix.json'))
+if (!matrix.containsKey(name)) throw new GradleException("Unknown fixture toolchain: ${name}")
+gradle.ext.fixtureToolchain = matrix[name]
+settings.pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    plugins {
+        id 'com.android.application' version matrix[name].agp
+        id 'com.android.library' version matrix[name].agp
+        id 'org.jetbrains.kotlin.android' version matrix[name].kotlin
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
