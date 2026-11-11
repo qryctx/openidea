@@ -764,6 +764,7 @@ export class DocumentManager {
           await model.save("auto");
         } catch (e) {
           console.warn(`autosave of ${model.path} failed`, e);
+          return;
         }
       }
       if (model.inUse()) return;
