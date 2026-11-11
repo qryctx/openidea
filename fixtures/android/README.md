@@ -49,6 +49,42 @@ Gradle 自动生成的 wrapper 固定 distribution SHA-256：
 `7988ed071b2a07900e2ec715fca15c6ab72bce6db433af301fa7fa7e9407bd24`。
 Linux/macOS 可直接用同目录 `gradlew`（必要时 `sh gradlew`）；本轮实测范围为 Windows。
 
+## Windows 路径与取消
+
+AGP 默认拒绝中文工程路径；仅作显式实验，不改变所有用户工程的默认设置：
+
+```powershell
+python fixtures\android\build-fixtures.py --unicode-root "$env:USERPROFILE\oas 样例 space" --override-path-check --evidence "$env:TEMP\oas-unicode"
+python fixtures\android\cancel-probe.py --mode both --repeats 2 --evidence "$env:TEMP\oas-cancel"
+```
+
+`--unicode-root` 必须是新目录，复制时不含 build/cache/local.properties。
+覆盖开关是 AGP 提示的 `-Pandroid.overridePathCheck=true`；不传它时实际退出码为 1。
+实测传开关后三个样例构建通过，但不等于所有 Windows 工具都支持 Unicode。
+
+初次 CTRL_BREAK 实验只产生 JVM thread dump，不能取消；原日志保留，不再重复。
+当前驱动改为镜像 `ide-core/src/process.rs` 的 Windows
+`taskkill /T /F /PID <自有客户端 PID>`，等待已捕获子进程，再终止/回收客户端。
+使用与生产路径一致的 `CREATE_NO_WINDOW`，不发送控制台信号。
+
+每次运行在专用缓存下新建**独享、可删除的 Gradle user home 与工程**。
+任务每 250 ms 向文件追加心跳；同时保留 PID、创建时间和进程 handle，
+避免把 PID 重用或其他会话的 daemon 当成自己的。分别检查 `--no-daemon`、
+成功预热后仍在运行的 daemon + 新客户端，默认每种重复两次。
+只有真实任务 JVM 已退出或记录了 `InterruptedException`，且反馈/任务停止均 ≤5 秒，
+才记为取消通过；不只检查客户端退出或心跳短暂安静。
+
+读取 `summary.json` 与逐用例 `*-result.json`：
+`clientFeedbackSeconds`、`workStopBoundSeconds`、`workStopEvidence`、
+`explicitDaemonCleanup` 分开记录。失败/超时/残留/样例输入变更时驱动退出 1；
+退出 0 表示全部所选用例通过并清理完成，不再表示“仅完成测量”。
+预热 daemon 的后续精确 PID 清理**不计入取消成功**。不使用 `gradle --stop`、
+按进程名 kill、共享缓存或 adb。
+
+两次独立执行共八个用例通过，实际停止上界 0.094–0.484 秒；样例输入哈希不变，
+自有进程与临时 user home 清理完成。保留现有 PID 树策略，不引入模型桥。
+这是宿主机进程策略回归，**不是原生 IDE Stop 按钮或任意 AGP/native 阻塞任务已通过**。
+
 ## 最小运行合同
 
 1. `:app:assembleDebug` 成功后，读取

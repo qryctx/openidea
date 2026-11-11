@@ -11,6 +11,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--toolchain", choices=["conservative"], default="conservative")
 parser.add_argument("--evidence", type=Path, required=True)
 parser.add_argument("--unicode-root", type=Path)
+parser.add_argument("--override-path-check", action="store_true",
+                    help="Explicitly test AGP's documented non-ASCII path-check override")
 args = parser.parse_args()
 root = Path(__file__).resolve().parent
 cache = os.environ.get("GRADLE_USER_HOME")
@@ -33,6 +35,8 @@ results = []
 for fixture, tasks in cases.items():
     command = [str(wrapper), "-p", str(root / fixture), "-Ptoolchain=" + args.toolchain,
                "--no-daemon", "--console=plain", *tasks]
+    if args.override_path_check:
+        command.append("-Pandroid.overridePathCheck=true")
     start = time.monotonic()
     log = args.evidence / (args.toolchain + "-" + fixture + ".log")
     with log.open("wb") as output:
