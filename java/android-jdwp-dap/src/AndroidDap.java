@@ -1,0 +1,575 @@
+import com.sun.jdi.*;
+import com.sun.jdi.connect.AttachingConnector;
+import com.sun.jdi.event.*;
+import com.sun.jdi.request.*;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.util.*;
+
+/** JDI DAP spike: attach preserves targets; launch owns only an Android sample package. */
+public final class AndroidDap {
+    private final BufferedInputStream input = new BufferedInputStream(System.in);
+    private volatile VirtualMachine vm;
+    private AndroidLaunch android;
+    private boolean configured;
+    private boolean terminatedSent;
+    private volatile boolean closed;
+    private int seq = 1, nextId = 1;
+    private final Map<Integer, ThreadReference> threads = new LinkedHashMap<>();
+    private final Map<Integer, StackFrame> frames = new HashMap<>();
+    private final Map<Integer, Object> handles = new HashMap<>();
+    private final Map<String, List<LineBreakpoint>> breakpoints = new LinkedHashMap<>();
+    private final Map<Path, String> breakpointPaths = new HashMap<>();
+    private final List<Path> roots = new ArrayList<>();
+    private final Set<String> warned = new HashSet<>();
+    private final Object state = new Object();
+
+    private static final class LineBreakpoint {
+        final int id, line;
+        final String path;
+        final Set<Location> installed = new HashSet<>();
+        LineBreakpoint(int id, int line, String path) { this.id = id; this.line = line; this.path = path; }
+        Map<String, Object> body() {
+            var body = new LinkedHashMap<String, Object>();
+            body.put("id", id);
+            body.put("line", line);
+            body.put("verified", !installed.isEmpty());
+            body.put("source", Map.of("path", path));
+            if (installed.isEmpty()) body.put("message", "Pending class load or no executable line");
+            return body;
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        var adapter = new AndroidDap();
+        Throwable failure = null;
+        try { adapter.run(); }
+        catch (Exception | Error error) { failure = error; throw error; }
+        finally {
+            synchronized (adapter.state) {
+                try { adapter.finish(adapter.android != null); }
+                catch (Exception cleanup) {
+                    if (failure == null) throw cleanup;
+                    failure.addSuppressed(cleanup);
+                    System.err.println("Final cleanup failed: " + cleanup);
+                }
+            }
+        }
+    }
+
+    private void run() throws IOException {
+        while (!closed) {
+            Map<String, Object> request = read();
+            if (request == null) return;
+            String command = (String) request.get("command");
+            synchronized (state) {
+                try {
+                    Object rawArgs = request.get("arguments");
+                    var args = rawArgs == null ? Map.<String, Object>of() : Json.object(rawArgs);
+                    Object body = dispatch(command, args);
+                    send(Map.of("type", "response", "request_seq", request.get("seq"),
+                            "command", command, "success", true, "body", body));
+                    if (command.equals("attach") || command.equals("launch")) event("initialized", Map.of());
+                    if (command.equals("terminate") || command.equals("disconnect")) terminated();
+                    if (command.equals("disconnect")) closed = true;
+                } catch (Exception e) {
+                    System.err.println(command + ": " + e);
+                    send(Map.of("type", "response", "request_seq", request.get("seq"),
+                            "command", command, "success", false, "message", e.toString()));
+                }
+            }
+        }
+    }
+
+    private Object dispatch(String command, Map<String, Object> args) throws Exception {
+        if (command.equals("initialize")) {
+            if (Boolean.FALSE.equals(args.get("linesStartAt1")) || Boolean.FALSE.equals(args.get("columnsStartAt1")))
+                throw new IllegalArgumentException("This prototype requires 1-based DAP coordinates");
+            return Map.of("supportsConfigurationDoneRequest", true, "supportsTerminateDebuggee", true,
+                    "supportsTerminateRequest", true, "supportsVariablePaging", true);
+        }
+        if (command.equals("attach")) {
+            if (vm != null || android != null) throw new IllegalStateException("Already attached");
+            String host = stringArgument(args.getOrDefault("hostName", "127.0.0.1"), "hostName");
+            if (!host.equals("127.0.0.1") && !host.equals("localhost"))
+                throw new IllegalArgumentException("Use a loopback adb forward");
+            int port = Json.integer(args, "port");
+            if (port < 1 || port > 65535) throw new IllegalArgumentException("Invalid port");
+            return connect(host, port, sourceRoots(args), classFilters(args));
+        }
+        if (command.equals("launch")) {
+            if (vm != null || android != null) throw new IllegalStateException("Already attached");
+            List<Path> sourceRoots = sourceRoots(args);
+            List<String> filters = classFilters(args);
+            AndroidLaunch launched = AndroidLaunch.create(args);
+            try {
+                int port = launched.start();
+                Object body = connect("127.0.0.1", port, sourceRoots, filters);
+                android = launched;
+                return body;
+            } catch (Exception | Error failure) {
+                try { launched.cleanup(true); }
+                catch (Exception cleanup) {
+                    failure.addSuppressed(cleanup);
+                    System.err.println("Android launch rollback failed: " + cleanup);
+                    android = launched;
+                }
+                throw failure;
+            }
+        }
+        if (command.equals("terminate")) {
+            if (android == null) throw new UnsupportedOperationException("terminate is only available for owned Android launches");
+            finish(true);
+            return Map.of();
+        }
+        if (vm == null && !command.equals("disconnect")) throw new IllegalStateException("Not attached");
+        return switch (command) {
+            case "setBreakpoints" -> setBreakpoints(args);
+            case "setExceptionBreakpoints" -> {
+                if (!Json.array(args.getOrDefault("filters", List.of())).isEmpty())
+                    throw new UnsupportedOperationException("Exception breakpoints are not supported");
+                yield Map.of();
+            }
+            case "configurationDone" -> {
+                if (configured) throw new IllegalStateException("Already configured");
+                configured = true;
+                vm.resume();
+                yield Map.of();
+            }
+            case "threads" -> Map.of("threads", vm.allThreads().stream()
+                    .map(t -> Map.of("id", threadId(t), "name", t.name())).toList());
+            case "stackTrace" -> stackTrace(args);
+            case "scopes" -> {
+                StackFrame frame = frame(Json.integer(args, "frameId"));
+                yield Map.of("scopes", List.of(Map.of("name", "Locals", "variablesReference", handle(frame),
+                        "expensive", false, "presentationHint", "locals")));
+            }
+            case "variables" -> variables(args);
+            case "continue", "next", "stepIn", "stepOut" -> {
+                ThreadReference thread = thread(Json.integer(args, "threadId"));
+                if (!configured || !thread.isSuspended()) throw new IllegalStateException("Target is not stopped");
+                var manager = vm.eventRequestManager();
+                manager.deleteEventRequests(new ArrayList<>(manager.stepRequests()));
+                if (!command.equals("continue")) {
+                    int depth = switch (command) {
+                        case "next" -> StepRequest.STEP_OVER;
+                        case "stepIn" -> StepRequest.STEP_INTO;
+                        default -> StepRequest.STEP_OUT;
+                    };
+                    var step = manager.createStepRequest(thread, StepRequest.STEP_LINE, depth);
+                    for (String filter : List.of("java.*", "javax.*", "jdk.*", "sun.*", "android.*", "kotlin.*"))
+                        step.addClassExclusionFilter(filter);
+                    step.addCountFilter(1);
+                    step.setSuspendPolicy(EventRequest.SUSPEND_ALL);
+                    step.enable();
+                }
+                invalidate();
+                vm.resume();
+                event("continued", Map.of("threadId", threadId(thread), "allThreadsContinued", true));
+                yield Map.of("allThreadsContinued", true);
+            }
+            case "pause" -> {
+                if (!configured) throw new IllegalStateException("Configuration is not complete");
+                ThreadReference thread = thread(Json.integer(args, "threadId"));
+                if (thread.isSuspended()) throw new IllegalStateException("Target already stopped");
+                vm.suspend();
+                invalidate();
+                event("stopped", Map.of("reason", "pause", "threadId", threadId(thread), "allThreadsStopped", true));
+                yield Map.of();
+            }
+            case "disconnect" -> {
+                boolean stop = Boolean.TRUE.equals(args.get("terminateDebuggee"));
+                if (stop && android == null && vm != null)
+                    throw new UnsupportedOperationException("Target termination is forbidden for attach");
+                finish(stop);
+                yield Map.of();
+            }
+            default -> throw new UnsupportedOperationException("Unsupported DAP command: " + command);
+        };
+    }
+
+    private List<Path> sourceRoots(Map<String, Object> args) throws IOException {
+        var sourceRoots = new ArrayList<Path>();
+        for (Object root : Json.array(args.getOrDefault("sourceRoots", List.of()))) {
+            Path path = Path.of(stringArgument(root, "sourceRoot")).toRealPath();
+            if (!Files.isDirectory(path)) throw new IllegalArgumentException("sourceRoot must be a directory: " + path);
+            sourceRoots.add(path);
+        }
+        return sourceRoots;
+    }
+
+    private List<String> classFilters(Map<String, Object> args) {
+        var filters = new ArrayList<String>();
+        for (Object value : Json.array(args.getOrDefault("classFilters", List.of("*")))) {
+            String filter = stringArgument(value, "classFilter");
+            int star = filter.indexOf('*');
+            if (star >= 0 && (star != filter.lastIndexOf('*') || (star != 0 && star != filter.length() - 1)))
+                throw new IllegalArgumentException("classFilter permits only one leading or trailing wildcard: " + filter);
+            filters.add(filter);
+        }
+        if (filters.isEmpty()) throw new IllegalArgumentException("classFilters must not be empty");
+        return filters;
+    }
+
+    private Object connect(String host, int port, List<Path> sourceRoots, List<String> filters) throws Exception {
+        AttachingConnector connector = Bootstrap.virtualMachineManager().attachingConnectors().stream()
+                .filter(c -> c.name().equals("com.sun.jdi.SocketAttach")).findFirst().orElseThrow();
+        var options = connector.defaultArguments();
+        options.get("hostname").setValue(host);
+        options.get("port").setValue(Integer.toString(port));
+        options.get("timeout").setValue("10000");
+        VirtualMachine target = connector.attach(options);
+        try {
+            // VMStart may be resumed by the event pump; this separate hold protects setup.
+            target.suspend();
+            for (String filter : filters) {
+                var prepare = target.eventRequestManager().createClassPrepareRequest();
+                prepare.addClassFilter(filter);
+                prepare.setSuspendPolicy(EventRequest.SUSPEND_ALL);
+                prepare.enable();
+            }
+            var body = Map.of("vmName", target.name(), "vmVersion", target.version());
+            clearSessionState();
+            roots.addAll(sourceRoots);
+            vm = target;
+            new Thread(() -> pump(target), "jdi-events").start();
+            return body;
+        } catch (Exception | Error failure) {
+            if (vm == target) vm = null;
+            clearSessionState();
+            try { target.dispose(); }
+            catch (Exception cleanup) {
+                failure.addSuppressed(cleanup);
+                System.err.println("Attach rollback failed: " + cleanup);
+            }
+            throw failure;
+        }
+    }
+
+    private Object setBreakpoints(Map<String, Object> args) throws Exception {
+        Path requestedPath = Path.of(stringArgument(Json.object(args.get("source")).get("path"), "source.path"))
+                .toAbsolutePath().normalize();
+        List<?> requested = Json.array(args.getOrDefault("breakpoints", List.of()));
+        String path;
+        if (requested.isEmpty() && breakpointPaths.containsKey(requestedPath)) {
+            path = breakpointPaths.get(requestedPath);
+        } else {
+            try {
+                Path real = requestedPath.toRealPath();
+                if (!Files.isRegularFile(real)) throw new IllegalArgumentException("source.path must be a file: " + real);
+                path = real.toString();
+            } catch (NoSuchFileException missing) {
+                if (!requested.isEmpty()) throw missing;
+                path = requestedPath.toString();
+            }
+        }
+        var list = new ArrayList<LineBreakpoint>();
+        for (Object item : requested) {
+            var bp = Json.object(item);
+            for (String unsupported : List.of("condition", "hitCondition", "logMessage"))
+                if (bp.containsKey(unsupported)) throw new UnsupportedOperationException(unsupported);
+            int line = Json.integer(bp, "line");
+            if (line < 1) throw new IllegalArgumentException("Line must be positive");
+            list.add(new LineBreakpoint(nextId++, line, path));
+        }
+        List<LineBreakpoint> previous = breakpoints.getOrDefault(path, List.of());
+        var oldIds = previous.stream().map(b -> b.id).toList();
+        var manager = vm.eventRequestManager();
+        manager.deleteEventRequests(manager.breakpointRequests().stream()
+                .filter(r -> oldIds.contains(r.getProperty("id"))).toList());
+        if (list.isEmpty()) {
+            breakpoints.remove(path);
+            String clearedPath = path;
+            breakpointPaths.values().removeIf(value -> value.equals(clearedPath));
+        } else {
+            breakpoints.put(path, list);
+            breakpointPaths.put(requestedPath, path);
+            for (ReferenceType type : vm.allClasses()) if (candidate(type) && type.isPrepared()) install(type, false);
+        }
+        return Map.of("breakpoints", list.stream().map(LineBreakpoint::body).toList());
+    }
+
+    static String stringArgument(Object value, String name) {
+        if (!(value instanceof String text) || text.isBlank())
+            throw new IllegalArgumentException(name + " must be a nonblank string");
+        return text;
+    }
+
+    private void clearSessionState() {
+        configured = false;
+        terminatedSent = false;
+        roots.clear();
+        threads.clear();
+        breakpoints.clear();
+        breakpointPaths.clear();
+        warned.clear();
+        invalidate();
+    }
+
+    private boolean candidate(ReferenceType type) {
+        String name = type.name();
+        int dot = name.lastIndexOf('.');
+        String directory = dot < 0 ? "" : name.substring(0, dot).replace('.', '/');
+        for (var list : breakpoints.values()) for (var bp : list) {
+            String parent = Path.of(bp.path).getParent().toString().replace('\\', '/');
+            if (directory.isEmpty() || parent.endsWith("/" + directory)) return true;
+        }
+        return false;
+    }
+
+    private static String sourceSuffix(ReferenceType type, String sourceName) {
+        String name = type.name();
+        int dot = name.lastIndexOf('.');
+        return (dot < 0 ? "" : name.substring(0, dot + 1).replace('.', '/')) + sourceName;
+    }
+
+    private boolean matches(String path, ReferenceType type, String sourceName) {
+        String suffix = sourceSuffix(type, sourceName);
+        String normalized = path.replace('\\', '/');
+        return normalized.endsWith("/" + suffix) || normalized.equals(suffix);
+    }
+
+    private void install(ReferenceType type, boolean notify) throws AbsentInformationException {
+        if (!candidate(type)) return;
+        List<String> names;
+        try { names = type.sourceNames("Java"); }
+        catch (AbsentInformationException e) { return; } // Runtime classes often have no debug metadata.
+        for (var list : breakpoints.values()) for (var bp : list) {
+            for (String name : names) {
+                if (!matches(bp.path, type, name)) continue;
+                boolean wasVerified = !bp.installed.isEmpty();
+                try {
+                    for (Location location : type.locationsOfLine("Java", name, bp.line)) {
+                        if (!bp.installed.add(location)) continue;
+                        var request = vm.eventRequestManager().createBreakpointRequest(location);
+                        request.putProperty("id", bp.id);
+                        request.setSuspendPolicy(EventRequest.SUSPEND_ALL);
+                        request.enable();
+                    }
+                } catch (AbsentInformationException e) {
+                    warn("No line metadata: " + type.name());
+                }
+                if (notify && !wasVerified && !bp.installed.isEmpty())
+                    event("breakpoint", Map.of("reason", "changed", "breakpoint", bp.body()));
+            }
+        }
+    }
+
+    private void pump(VirtualMachine target) {
+        try {
+            while (!closed && vm == target) {
+                EventSet events = target.eventQueue().remove();
+                synchronized (state) {
+                    if (closed || vm != target) return;
+                    boolean stop = false;
+                    for (Event event : events) {
+                        if (event instanceof ClassPrepareEvent prepare) install(prepare.referenceType(), true);
+                        if (event instanceof BreakpointEvent || event instanceof StepEvent) {
+                            if (!stop) {
+                                var located = (LocatableEvent) event;
+                                if (event instanceof StepEvent) vm.eventRequestManager().deleteEventRequest(event.request());
+                                invalidate();
+                                var body = new LinkedHashMap<String, Object>();
+                                body.put("reason", event instanceof StepEvent ? "step" : "breakpoint");
+                                body.put("threadId", threadId(located.thread()));
+                                body.put("allThreadsStopped", true);
+                                if (event instanceof BreakpointEvent)
+                                    body.put("hitBreakpointIds", List.of(event.request().getProperty("id")));
+                                event("stopped", body);
+                            }
+                            stop = true;
+                        }
+                        if (event instanceof VMDeathEvent || event instanceof VMDisconnectEvent) {
+                            finish(true);
+                            terminated();
+                            return;
+                        }
+                    }
+                    if (!stop) events.resume();
+                }
+            }
+        } catch (VMDisconnectedException e) {
+            synchronized (state) {
+                if (!closed && vm == target) {
+                    try { finish(true); }
+                    catch (Exception cleanup) { warn("Disconnected target cleanup failed: " + cleanup); }
+                    terminated();
+                }
+            }
+        } catch (Exception e) {
+            synchronized (state) {
+                if (vm == target) {
+                    warn("JDI event pump failed: " + e);
+                    try { finish(true); }
+                    catch (Exception cleanup) { warn("Failed target cleanup: " + cleanup); }
+                    terminated();
+                }
+            }
+        }
+    }
+
+    private Object stackTrace(Map<String, Object> args) throws Exception {
+        ThreadReference thread = thread(Json.integer(args, "threadId"));
+        var stack = thread.frames();
+        int start = args.containsKey("startFrame") ? Json.integer(args, "startFrame") : 0;
+        int levels = args.containsKey("levels") ? Json.integer(args, "levels") : 0;
+        if (start < 0 || levels < 0) throw new IllegalArgumentException("Invalid frame range");
+        var out = new ArrayList<Object>();
+        for (int i = start; i < stack.size() && (levels == 0 || out.size() < levels); i++) {
+            StackFrame frame = stack.get(i);
+            int id = nextId++;
+            frames.put(id, frame);
+            Location location = frame.location();
+            var entry = new LinkedHashMap<String, Object>();
+            entry.put("id", id);
+            entry.put("name", location.declaringType().name() + "." + location.method().name());
+            int line = location.lineNumber("Java");
+            entry.put("line", Math.max(0, line));
+            entry.put("column", 1);
+            String path = source(location);
+            if (path != null && line > 0) entry.put("source", Map.of("path", path, "name", Path.of(path).getFileName().toString()));
+            else entry.put("presentationHint", "subtle");
+            out.add(entry);
+        }
+        return Map.of("stackFrames", out, "totalFrames", stack.size());
+    }
+
+    private String source(Location location) throws IOException {
+        String name;
+        try { name = location.sourceName("Java"); }
+        catch (AbsentInformationException e) { return null; }
+        var candidates = new LinkedHashSet<String>();
+        for (String path : breakpoints.keySet()) if (matches(path, location.declaringType(), name)) candidates.add(path);
+        for (Path root : roots) {
+            Path file = root.resolve(sourceSuffix(location.declaringType(), name).replace('/', File.separatorChar));
+            if (Files.isRegularFile(file)) candidates.add(file.toRealPath().toString());
+        }
+        if (candidates.size() > 1) throw new IllegalArgumentException("Ambiguous source: " + name + " " + candidates);
+        return candidates.stream().findFirst().orElse(null);
+    }
+
+    private Object variables(Map<String, Object> args) throws Exception {
+        Object value = handles.get(Json.integer(args, "variablesReference"));
+        if (value == null) throw new IllegalArgumentException("Stale or unknown variable reference");
+        var out = new ArrayList<Object>();
+        if (value instanceof StackFrame frame) {
+            ObjectReference self = frame.thisObject();
+            if (self != null) out.add(variable("this", self));
+            for (LocalVariable local : frame.visibleVariables()) out.add(variable(local.name(), frame.getValue(local)));
+        } else if (value instanceof ArrayReference array) {
+            int start = args.containsKey("start") ? Json.integer(args, "start") : 0;
+            int count = args.containsKey("count") ? Json.integer(args, "count") : 0;
+            if (start < 0 || count < 0 || start > array.length()) throw new IllegalArgumentException("Invalid array range");
+            int end = count == 0 ? array.length() : (int) Math.min(array.length(), (long) start + count);
+            for (int i = start; i < end; i++) out.add(variable("[" + i + "]", array.getValue(i)));
+        } else if (value instanceof ObjectReference object) {
+            for (Field field : object.referenceType().allFields())
+                out.add(variable(field.declaringType().name() + "." + field.name(), object.getValue(field)));
+        } else throw new IllegalArgumentException("Unsupported variable handle");
+        return Map.of("variables", out);
+    }
+
+    private Object variable(String name, Value value) {
+        int ref = value instanceof ObjectReference && !(value instanceof StringReference) ? handle(value) : 0;
+        String rendered = value == null ? "null" : value instanceof StringReference s ? Json.write(s.value()) : value.toString();
+        var out = new LinkedHashMap<String, Object>();
+        out.put("name", name);
+        out.put("value", rendered);
+        out.put("type", value == null ? "null" : value.type().name());
+        out.put("variablesReference", ref);
+        if (value instanceof ArrayReference array) out.put("indexedVariables", array.length());
+        return out;
+    }
+
+    private int handle(Object value) { int id = nextId++; handles.put(id, value); return id; }
+    private void invalidate() { frames.clear(); handles.clear(); }
+    private StackFrame frame(int id) {
+        StackFrame frame = frames.get(id);
+        if (frame == null) throw new IllegalArgumentException("Stale or unknown frame");
+        return frame;
+    }
+    private ThreadReference thread(int id) {
+        ThreadReference thread = threads.get(id);
+        if (thread == null) throw new IllegalArgumentException("Unknown thread");
+        return thread;
+    }
+    private int threadId(ThreadReference thread) {
+        for (var entry : threads.entrySet()) if (entry.getValue().equals(thread)) return entry.getKey();
+        int id = nextId++;
+        threads.put(id, thread);
+        return id;
+    }
+    private void detach() {
+        try {
+            if (vm != null) {
+                try { vm.dispose(); }
+                catch (VMDisconnectedException e) { System.err.println("Target already disconnected"); }
+            }
+        } finally {
+            vm = null;
+            invalidate();
+        }
+    }
+    private void finish(boolean stop) throws Exception {
+        Exception failure = null;
+        try { detach(); }
+        catch (Exception error) { failure = error; }
+        if (android != null) {
+            try { android.cleanup(stop); }
+            catch (Exception error) {
+                if (failure == null) failure = error;
+                else failure.addSuppressed(error);
+            }
+            if (android.isClean()) android = null;
+        }
+        if (failure != null) throw failure;
+    }
+    private void terminated() {
+        if (!terminatedSent) {
+            event("terminated", Map.of());
+            terminatedSent = true;
+        }
+    }
+    private void warn(String message) {
+        System.err.println(message);
+        if (warned.add(message)) event("output", Map.of("category", "stderr", "output", message + "\n"));
+    }
+    private void event(String event, Object body) { send(Map.of("type", "event", "event", event, "body", body)); }
+    private synchronized void send(Map<String, Object> message) {
+        var out = new LinkedHashMap<>(message);
+        out.put("seq", seq++);
+        byte[] bytes = Json.write(out).getBytes(StandardCharsets.UTF_8);
+        try {
+            System.out.write(("Content-Length: " + bytes.length + "\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+            System.out.write(bytes);
+            System.out.flush();
+        } catch (IOException e) { throw new UncheckedIOException(e); }
+    }
+    private Map<String, Object> read() throws IOException {
+        var header = new ByteArrayOutputStream();
+        while (true) {
+            int b = input.read();
+            if (b < 0) {
+                if (header.size() == 0) return null;
+                throw new EOFException("Truncated DAP header");
+            }
+            header.write(b);
+            if (header.size() > 8192) throw new IOException("Oversized DAP header");
+            byte[] bytes = header.toByteArray();
+            int n = bytes.length;
+            if (n >= 4 && bytes[n - 4] == 13 && bytes[n - 3] == 10 && bytes[n - 2] == 13 && bytes[n - 1] == 10) break;
+        }
+        int length = -1;
+        for (String line : header.toString(StandardCharsets.US_ASCII).split("\r\n")) {
+            if (line.toLowerCase(Locale.ROOT).startsWith("content-length:")) {
+                if (length != -1) throw new IOException("Duplicate content length");
+                length = Integer.parseInt(line.substring(line.indexOf(':') + 1).trim());
+            }
+        }
+        if (length < 0 || length > 4 * 1024 * 1024) throw new IOException("Invalid DAP length");
+        byte[] body = input.readNBytes(length);
+        if (body.length != length) throw new EOFException("Truncated DAP body");
+        return Json.object(Json.parse(new String(body, StandardCharsets.UTF_8)));
+    }
+}
