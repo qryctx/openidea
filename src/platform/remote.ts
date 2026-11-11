@@ -1,4 +1,6 @@
 import { confirmProjectTrust } from "./projectTrust";
+import { featureEnabled } from "./productProfile";
+import { tx } from "./i18n";
 /**
  * Remote development: in a window whose project lives on another machine, the
  * commands that machine's `openidea-server` answers are routed to it (through
@@ -142,6 +144,7 @@ export function hostOs(): string {
 
 /** Re-attaches after a reload (the backend keeps the connection per window). */
 export async function restoreRemote(): Promise<RemoteSession | null> {
+  if (!featureEnabled("remote-dev")) return null;
   if (!isTauri()) return null;
   const session = await commands.remoteCurrent().catch(() => null);
   if (session) enableRemote(session);
@@ -159,6 +162,9 @@ export const useRemoteProgress = create<{ progress: RemoteProgress | null; locat
  * project folder is the one in the container: `path` is then only a label.
  */
 export async function connectRemote(target: RemoteTarget, path: string) {
+  if (!featureEnabled("remote-dev")) {
+    throw new IpcError({ kind: "unavailable", message: tx("Remote development is unavailable in the v0 profile.") });
+  }
   useProject.setState({ opening: true });
   const location = remoteLocation(target, path);
   const onProgress = new Channel<RemoteProgress>();

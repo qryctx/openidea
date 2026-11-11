@@ -26,6 +26,8 @@ import { call, commands, isTauri } from "./platform/ipc";
 import { hideSplash } from "./platform/splash";
 import { prefetchLazyComponents } from "./ui";
 import { installWindowDrag } from "./workbench/window-drag";
+import { isV0Profile } from "./platform/productProfile";
+import { tx } from "./platform/i18n";
 
 if (import.meta.env.DEV && isTauri()) {
   // The Tauri MCP bridge returns eval results via `window.__TAURI__` on Windows/Linux
@@ -53,8 +55,11 @@ installPageSwipeTracking(window);
 // Auxiliary windows (Settings `settings-<parent>`, comparisons `comparison-<parent>-<n>`, Sync with
 // Deployed `deployment-<parent>`) load this page too.
 const aux = auxiliaryWindow();
+const blockedDeployment = aux?.kind === "deployment" && isV0Profile();
 
-if (aux?.kind === "settings") {
+if (blockedDeployment) {
+  activateSecondaryWindow();
+} else if (aux?.kind === "settings") {
   activateSecondaryWindow();
   activateSettingsWindowFeatures(aux.parent);
 } else if (aux?.kind === "comparison") {
@@ -68,7 +73,7 @@ if (aux?.kind === "settings") {
   activateWorkbench();
   // `vite build --mode perf` is a production bundle for the performance harness (`perf/`).
   const perfBuild = import.meta.env.MODE === "perf";
-  if ((import.meta.env.DEV || perfBuild) && !isTauri()) {
+  if ((import.meta.env.DEV || perfBuild) && !isTauri() && !isV0Profile()) {
     const { registerDevSamples } = await import("./workbench/devSamples");
     registerDevSamples();
   }
@@ -88,7 +93,9 @@ function App() {
     // Views split out of the start-up bundle load in the background once the UI is up.
     if (!aux) return prefetchLazyComponents();
   }, []);
-  return aux?.kind === "settings" ? (
+  return blockedDeployment ? (
+    <div role="alert">{tx("Deployment is unavailable in the v0 profile.")}</div>
+  ) : aux?.kind === "settings" ? (
     <SettingsWindow />
   ) : aux?.kind === "comparison" ? (
     <ComparisonWindow />

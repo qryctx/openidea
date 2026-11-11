@@ -13,6 +13,7 @@ import { workflowSettings } from "@/platform/workflowSettings";
 import { notifications } from "@/workbench/contributions";
 import { confirm } from "@/workbench/messages";
 import { promptSecret } from "./dialogs";
+import { isV0Profile } from "@/platform/productProfile";
 
 /** The run target `config` runs on; undefined when it runs locally or the target is gone. */
 export function targetOf(
@@ -69,6 +70,14 @@ export function containerDebuggable(
  */
 export function remoteDebugBlocked(config: RunConfig, targets: readonly RuntimeRunTarget[] = allRunTargets()): boolean {
   config = withRunTarget(config);
+  if (isV0Profile() && config.target) {
+    notifications().notify({
+      group: "run",
+      level: "warning",
+      title: "Remote run targets are unavailable in the v0 profile.",
+    });
+    return true;
+  }
   if (!config.target || containerDebuggable(config, targets)) return false;
   const target = targetName(config, targets) ?? config.target;
   const container = targetOf(config, targets);
@@ -162,6 +171,9 @@ export async function startWithRemedies<T>(
   start: () => Promise<T>,
   deps: RemedyDeps = defaultDeps,
 ): Promise<T> {
+  if (isV0Profile() && config.target) {
+    throw new IpcError({ kind: "unavailable", message: tx("Remote run targets are unavailable in the v0 profile.") });
+  }
   const used = new Set<StartRemedy>();
   for (;;) {
     try {

@@ -3,6 +3,7 @@
  * "Terminal" tool window (tabs, split tab groups, links, IDEA-style shortcuts).
  */
 import { registerActions } from "@/platform/actions";
+import { isV0Profile } from "@/platform/productProfile";
 import { onIdeEvent } from "@/platform/ipc";
 import { useProject } from "@/platform/project";
 import { onWorkflowSettingsChange } from "@/platform/workflowSettings";
@@ -100,6 +101,7 @@ export function activate(): () => void {
       icon: "toolwindow-terminal",
       anchor: "bottom",
       order: 10,
+      stripe: isV0Profile() ? "onUse" : "shown",
       component: lazyComponent(() => loadTerminalRuntime().then((rt) => rt.TerminalView)),
       headerContent: lazyComponent(() => loadTerminalRuntime().then((rt) => rt.TerminalTabs)),
     }),

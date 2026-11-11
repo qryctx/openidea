@@ -50,6 +50,7 @@ import { useBuildModel } from "@/platform/buildModel";
 import { COMPOUND, formParams, terminalApplies, withParams } from "./types";
 import { TomcatSettings } from "./TomcatSettings";
 import styles from "./Run.module.css";
+import { isV0Profile } from "@/platform/productProfile";
 
 /**
  * Debug adapters with a real launch template (`debugger/launch.ts`, `debugger/java.ts`),
@@ -443,11 +444,13 @@ export function ConfigForm({ config, all, type, errors, template, onChange, modi
             <Field
               label="Run on"
               hint={
-                config.target
-                  ? "Debugging is not available on run targets."
-                  : runTargets.length
-                    ? undefined
-                    : "Add SSH hosts in Settings › Build, Execution, Deployment › Run Targets."
+                isV0Profile()
+                  ? "Remote run targets are unavailable in the v0 profile."
+                  : config.target
+                    ? "Debugging is not available on run targets."
+                    : runTargets.length
+                      ? undefined
+                      : "Add SSH hosts in Settings › Build, Execution, Deployment › Run Targets."
               }
             >
               <Select

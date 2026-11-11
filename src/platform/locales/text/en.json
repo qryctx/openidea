@@ -1,4 +1,7 @@
 {
+  "Deployment is unavailable in the v0 profile.": "Deployment is unavailable in the v0 profile.",
+  "Remote development is unavailable in the v0 profile.": "Remote development is unavailable in the v0 profile.",
+  "Remote run targets are unavailable in the v0 profile.": "Remote run targets are unavailable in the v0 profile.",
   "Roll back the changes to {path}?": "Roll back the changes to {path}?",
   "Roll back the changes to {count} files?": "Roll back the changes to {count} files?",
   "They go back to how they were when the task started, in the task's worktree.": "They go back to how they were when the task started, in the task's worktree.",

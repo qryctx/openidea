@@ -1,4 +1,7 @@
 {
+  "Deployment is unavailable in the v0 profile.": "v0 配置不提供部署功能。",
+  "Remote development is unavailable in the v0 profile.": "v0 配置不提供远程开发功能。",
+  "Remote run targets are unavailable in the v0 profile.": "v0 配置不提供远程运行目标。",
   "Roll back the changes to {path}?": "是否回滚对 {path} 的更改？",
   "Roll back the changes to {count} files?": "是否回滚对 {count} 个文件的更改？",
   "They go back to how they were when the task started, in the task's worktree.": "它们会在任务的工作树中恢复为任务开始时的内容。",

@@ -12,6 +12,7 @@ import { useCommitCheckProviders } from "@/workbench/contributions";
 import { Checkbox, Input, Popup, T } from "@/ui";
 import { useCommit } from "./commitStore";
 import styles from "./CommitView.module.css";
+import { isV0Profile } from "@/platform/productProfile";
 
 type CommitCheck = "reformat" | "optimizeImports" | "cleanup" | "analyzeCode" | "checkTodo";
 
@@ -87,24 +88,27 @@ export function CommitOptionsBody() {
         <Checkbox checked={signOff} onChange={(v) => useCommit.setState({ signOff: v })} label="Sign-off commit" />
       </Section>
       <Section title="Commit Checks">
-        {check("reformat", "Reformat code")}
-        {check("optimizeImports", "Optimize imports")}
-        {check("cleanup", "Cleanup")}
+        {!isV0Profile() && check("reformat", "Reformat code")}
+        {!isV0Profile() && check("optimizeImports", "Optimize imports")}
+        {!isV0Profile() && check("cleanup", "Cleanup")}
         <Checkbox checked={runHooks} onChange={(v) => useCommit.setState({ runHooks: v })} label="Run Git hooks" />
+        {isV0Profile() && check("checkTodo", "Check TODO", <Configure />)}
       </Section>
-      <Section title="Advanced Commit Checks">
-        {check("analyzeCode", "Analyze code")}
-        {check("checkTodo", "Check TODO", <Configure />)}
-        {contributed.map((k) => (
-          <div key={k.key} className={styles.optRow}>
-            <Checkbox
-              checked={!c.disabledPluginChecks.includes(k.key)}
-              onChange={(v) => void setContributedCheck(k.key, v)}
-              label={k.title}
-            />
-          </div>
-        ))}
-      </Section>
+      {!isV0Profile() && (
+        <Section title="Advanced Commit Checks">
+          {check("analyzeCode", "Analyze code")}
+          {check("checkTodo", "Check TODO", <Configure />)}
+          {contributed.map((k) => (
+            <div key={k.key} className={styles.optRow}>
+              <Checkbox
+                checked={!c.disabledPluginChecks.includes(k.key)}
+                onChange={(v) => void setContributedCheck(k.key, v)}
+                label={k.title}
+              />
+            </div>
+          ))}
+        </Section>
+      )}
     </>
   );
 }

@@ -37,3 +37,37 @@ are listed through [l0ng-ai/openidea-plugins](https://github.com/l0ng-ai/openide
 see [`plugins/README.md`](plugins/README.md) § 8.1.
 
 A check on each PR adds `needs-info` when the verification section is missing, and removes it once it's filled in.
+
+## Opt-in v0 frontend profile
+
+The default build is unchanged. To try the bounded changes-first frontend on
+Windows PowerShell, run `$env:VITE_OPENIDEA_PROFILE = "v0"; pnpm build` (or
+`pnpm tauri dev` when native prerequisites are available). Remove the environment
+variable to return to the default product. All auxiliary windows use the same
+bundle/profile; this is not a runtime setting.
+
+v0 activates only the local shell, trust, text editor, Project, search, Git,
+Terminal, Build, Run, Debug, Logcat and basic Settings. Fresh layouts start with
+Commit (including Changes); Project remains available and Terminal is on-demand.
+Non-modal Commit is enforced in memory, without rewriting the saved preference.
+Language-server-based commit analysis and modifications are off in v0; Git
+warnings, hooks and the changed-line TODO check remain available.
+Tool-window layouts, named layouts and editor sessions have separate v0 storage
+keys: trying v0 neither migrates nor overwrites the default layout or open tabs.
+File contents and settings are still shared; ordinary save/close safeguards apply.
+
+AI, MCP, remote/deployment, marketplace/plugins, notebooks, databases, HTTP,
+GraphQL and advanced feature activations are excluded, not CSS-hidden. Settings
+pages, search entries, restored tool windows and the frontend main menu follow
+the same boundary. Native menus can only disable absent actions with the existing
+IPC; removing their native items requires a later backend integration.
+
+This does **not** disable or remove backend services, binaries or dependencies.
+Java/Kotlin semantic LSP activation is outside this frontend profile. Existing
+generic Build/Run/Debug implementations and language adapters remain intact:
+Build Project compiles sources/tests, not an Android APK. APK packaging,
+real-device install/launch and the independent JDI-to-DAP pipeline are not yet
+integrated into the IDE. No Android capability is claimed by this profile.
+External-change Git refresh is retained; dirty-buffer overwrite/conflict
+protection is not solved here. Native Rust/Tauri acceptance requires MSVC and the
+Windows SDK and must be recorded separately from frontend checks.

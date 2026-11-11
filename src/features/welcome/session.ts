@@ -9,6 +9,8 @@ import { commands, isCancelled, isTauri, type Settings } from "@/platform/ipc";
 import { closeProject, openProject, startupLaunchHandled, useProject } from "@/platform/project";
 import { connectRemote, projectLocation, resolveRemoteLocation, useRemoteProgress } from "@/platform/remote";
 import { notifications } from "@/workbench/contributions";
+import { featureEnabled } from "@/platform/productProfile";
+import { parseRemoteLocation } from "@/platform/remote";
 
 const SESSION_KEY = "openidea.session.openProject";
 const PREF_KEY = "openidea.welcome.reopenLastProject";
@@ -129,6 +131,8 @@ export async function reopenLastProject(): Promise<void> {
 }
 
 async function reopen(path: string) {
+  // Keep the remembered remote location intact for the default product.
+  if (!featureEnabled("remote-dev") && parseRemoteLocation(path)) return;
   const epoch = ++reopenEpoch;
   const name = path.slice(path.lastIndexOf("/") + 1) || path;
   // Clear before connecting so force-quitting a hung reopen does not loop on the next launch.

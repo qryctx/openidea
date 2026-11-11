@@ -13,6 +13,7 @@ import {
   type ToolWindowService,
 } from "../contributions";
 import { focusEditor } from "../focus";
+import { isV0Profile, profileStorageKey, toolWindowEnabled } from "@/platform/productProfile";
 
 export const ANCHORS: readonly ToolWindowAnchor[] = ["left", "bottom", "right"];
 
@@ -44,7 +45,7 @@ const NONE: SlotRecord = {
   right: null,
   "right-split": null,
 };
-const DEFAULT_VISIBLE: SlotRecord = { ...NONE, left: "project" };
+const defaultVisible = (): SlotRecord => ({ ...NONE, left: isV0Profile() ? "commit" : "project" });
 const STORAGE_PREFIX = "openidea.layout.v1:";
 /** Stored layout format: 1 = one area per side (no `v` field), 2 = primary + split areas. */
 const LAYOUT_VERSION = 2;
@@ -97,13 +98,13 @@ export interface ToolWindowLayoutState {
 
 const initial = (): ToolWindowLayoutState => ({
   scope: "",
-  visible: { ...DEFAULT_VISIBLE },
+  visible: defaultVisible(),
   sizes: { ...DEFAULT_SIZES },
   splits: { ...DEFAULT_SPLITS },
   maximized: null,
   focused: null,
   lastActive: null,
-  mounted: new Set(Object.values(DEFAULT_VISIBLE).filter((v): v is string => !!v)),
+  mounted: new Set(Object.values(defaultVisible()).filter((v): v is string => !!v)),
   focusRequest: null,
   stashed: null,
   stashedMaximized: null,
@@ -199,7 +200,7 @@ export function resetToolWindowPlacements() {
 }
 
 function storageKey(scope: string) {
-  return STORAGE_PREFIX + scope;
+  return profileStorageKey(STORAGE_PREFIX + scope);
 }
 
 function readStorage(scope: string): Record<string, unknown> | null {
@@ -268,6 +269,7 @@ export function sanitizePlacements(raw: unknown, version = LAYOUT_VERSION): Reco
   const out: Record<string, ToolWindowPlacement> = {};
   if (!raw || typeof raw !== "object") return out;
   for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!toolWindowEnabled(id)) continue;
     const p = v as { anchor?: unknown; split?: unknown; secondary?: unknown; order?: unknown } | null;
     if (!p || !ANCHORS.includes(p.anchor as ToolWindowAnchor)) continue;
     const anchor = p.anchor as ToolWindowAnchor;
@@ -291,16 +293,17 @@ export function sanitizePlacements(raw: unknown, version = LAYOUT_VERSION): Reco
 function sanitizeStripeButtons(raw: unknown): Record<string, boolean> {
   const out: Record<string, boolean> = {};
   if (raw && typeof raw === "object")
-    for (const [id, v] of Object.entries(raw as Record<string, unknown>)) if (typeof v === "boolean") out[id] = v;
+    for (const [id, v] of Object.entries(raw as Record<string, unknown>))
+      if (toolWindowEnabled(id) && typeof v === "boolean") out[id] = v;
   return out;
 }
 
 function sanitizeVisible(raw: unknown): SlotRecord {
-  if (!raw || typeof raw !== "object") return { ...DEFAULT_VISIBLE };
+  if (!raw || typeof raw !== "object") return defaultVisible();
   const out = { ...NONE };
   for (const slot of SLOTS) {
     const v = (raw as Record<string, unknown>)[slot];
-    out[slot] = typeof v === "string" ? v : null;
+    out[slot] = typeof v === "string" && toolWindowEnabled(v) ? v : null;
   }
   return out;
 }
@@ -632,9 +635,10 @@ export function defaultLayoutSnapshot(): ToolWindowLayoutSnapshot {
 /** Applies a saved layout to this project (and persists it as the project's layout). */
 export function applyToolWindowLayout(snapshot: ToolWindowLayoutSnapshot) {
   const s = useToolWindowLayout.getState();
-  const placements = { ...snapshot.placements };
+  const placements = sanitizePlacements(snapshot.placements);
   // Windows registered later keep their saved area; unknown ones simply never show.
-  const visible = reconcile(snapshot.visible, placements) ?? { ...snapshot.visible };
+  const allowedVisible = sanitizeVisible(snapshot.visible);
+  const visible = reconcile(allowedVisible, placements) ?? allowedVisible;
   const mounted = new Set(s.mounted);
   for (const id of Object.values(visible)) if (id) mounted.add(id);
   const hadFocus = !!s.focused && !Object.values(visible).includes(s.focused);
@@ -643,7 +647,7 @@ export function applyToolWindowLayout(snapshot: ToolWindowLayoutSnapshot) {
     sizes: { ...snapshot.sizes },
     splits: { ...snapshot.splits },
     placements,
-    stripeButtons: { ...snapshot.stripeButtons },
+    stripeButtons: sanitizeStripeButtons(snapshot.stripeButtons),
     mounted,
     maximized: null,
     stashed: null,

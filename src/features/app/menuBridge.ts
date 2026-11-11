@@ -26,6 +26,7 @@ import { orderStatusItems } from "@/workbench/StatusBar";
 import { statusWidgetRows } from "@/workbench/statusBarWidgets";
 import { useToolWindowLayouts } from "@/workbench/toolwindows/layouts";
 import { hostOs, type HostOs } from "./host";
+import { isV0Profile } from "@/platform/productProfile";
 
 export const MENU_EVENT = "openidea://menu";
 
@@ -145,7 +146,7 @@ export function disabledMenuActions(ids: Iterable<string>): string[] {
   const out: string[] = [];
   for (const id of ids) {
     const action = getAction(id);
-    if (action && !isActionEnabled(action)) out.push(id);
+    if (action ? !isActionEnabled(action) : isV0Profile()) out.push(id);
   }
   return out.sort();
 }

@@ -313,6 +313,25 @@ describe("DocumentManager + slots", () => {
     }
   });
 
+  it("retains the document and edits when last-slot autosave fails", async () => {
+    const { backend, manager } = setup({ "/p/a.txt": "base\n" });
+    try {
+      const model = await manager.acquire("/p/a.txt");
+      backend.patch(model.doc, [{ from: 0, to: 4, insert: "mine" }]);
+      vi.spyOn(backend, "save").mockRejectedValue(new Error("disk full"));
+      const close = vi.spyOn(backend, "close");
+      manager.release(model);
+      await settle();
+      expect(manager.get(model.path)).toBe(model);
+      expect(model.closed).toBe(false);
+      expect(model.sync.localText.toString()).toBe("mine\n");
+      expect(close).not.toHaveBeenCalled();
+      expect(await manager.acquire(model.path)).toBe(model);
+    } finally {
+      manager.stop();
+    }
+  });
+
   it("keeps a hidden tab's view and shows it again instead of building a new one", async () => {
     const { backend, manager } = setup({ "/p/a.txt": "abc" });
     const model = await manager.acquire("/p/a.txt");
