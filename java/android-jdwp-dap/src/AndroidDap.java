@@ -51,7 +51,8 @@ public final class AndroidDap {
             String command = (String) request.get("command");
             synchronized (state) {
                 try {
-                    var args = Json.object(request.getOrDefault("arguments", Map.of()));
+                    Object rawArgs = request.get("arguments");
+                    var args = rawArgs == null ? Map.<String, Object>of() : Json.object(rawArgs);
                     Object body = dispatch(command, args);
                     send(Map.of("type", "response", "request_seq", request.get("seq"),
                             "command", command, "success", true, "body", body));
@@ -184,8 +185,19 @@ public final class AndroidDap {
         manager.deleteEventRequests(manager.breakpointRequests().stream()
                 .filter(r -> oldIds.contains(r.getProperty("id"))).toList());
         breakpoints.put(path, list);
-        for (ReferenceType type : vm.allClasses()) if (type.isPrepared()) install(type, false);
+        for (ReferenceType type : vm.allClasses()) if (candidate(type) && type.isPrepared()) install(type, false);
         return Map.of("breakpoints", list.stream().map(LineBreakpoint::body).toList());
+    }
+
+    private boolean candidate(ReferenceType type) {
+        String name = type.name();
+        int dot = name.lastIndexOf('.');
+        String directory = dot < 0 ? "" : name.substring(0, dot).replace('.', '/');
+        for (var list : breakpoints.values()) for (var bp : list) {
+            String parent = Path.of(bp.path).getParent().toString().replace('\\', '/');
+            if (directory.isEmpty() || parent.endsWith("/" + directory)) return true;
+        }
+        return false;
     }
 
     private static String sourceSuffix(ReferenceType type, String sourceName) {
@@ -201,6 +213,7 @@ public final class AndroidDap {
     }
 
     private void install(ReferenceType type, boolean notify) throws AbsentInformationException {
+        if (!candidate(type)) return;
         List<String> names;
         try { names = type.sourceNames("Java"); }
         catch (AbsentInformationException e) { return; } // Runtime classes often have no debug metadata.
@@ -288,10 +301,11 @@ public final class AndroidDap {
             var entry = new LinkedHashMap<String, Object>();
             entry.put("id", id);
             entry.put("name", location.declaringType().name() + "." + location.method().name());
-            entry.put("line", Math.max(1, location.lineNumber("Java")));
+            int line = location.lineNumber("Java");
+            entry.put("line", Math.max(0, line));
             entry.put("column", 1);
             String path = source(location);
-            if (path != null) entry.put("source", Map.of("path", path, "name", Path.of(path).getFileName().toString()));
+            if (path != null && line > 0) entry.put("source", Map.of("path", path, "name", Path.of(path).getFileName().toString()));
             else entry.put("presentationHint", "subtle");
             out.add(entry);
         }

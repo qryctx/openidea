@@ -42,11 +42,11 @@ def wait_ready(lines):
 
 def attach(dap, port):
     dap.request("initialize", dict(linesStartAt1=True, columnsStartAt1=True))
-    start = time.monotonic()
+    start = time.perf_counter()
     dap.request("attach", dict(hostName="127.0.0.1", port=port,
                               sourceRoots=[str(SOURCE.parents[1])], classFilters=["spike.*"]))
     dap.event("initialized")
-    return round((time.monotonic() - start) * 1000, 1)
+    return round((time.perf_counter() - start) * 1000, 1)
 
 
 with tempfile.TemporaryDirectory(prefix="oas-jdi-") as output:
@@ -64,12 +64,12 @@ with tempfile.TemporaryDirectory(prefix="oas-jdi-") as output:
         dap.request("setBreakpoints", dict(source=dict(path=str(SOURCE)),
                                          breakpoints=[dict(line=line, condition="false")]), success=False)
         dap.request("setExceptionBreakpoints", dict(filters=[]))
-        start = time.monotonic()
+        start = time.perf_counter()
         dap.request("configurationDone")
         dap.event("breakpoint", lambda body: body["breakpoint"]["id"] == bp["id"]
                   and body["breakpoint"]["verified"])
         stop = dap.event("stopped")
-        timings["firstHitMs"] = round((time.monotonic() - start) * 1000, 1)
+        timings["firstHitMs"] = round((time.perf_counter() - start) * 1000, 1)
         assert stop["reason"] == "breakpoint" and stop["hitBreakpointIds"] == [bp["id"]], stop
         frame, locals_ = stopped_frame(dap, stop)
         assert frame["line"] == line and Path(frame["source"]["path"]) == SOURCE, frame
@@ -86,10 +86,10 @@ with tempfile.TemporaryDirectory(prefix="oas-jdi-") as output:
                 ("next", "BREAKPOINT-RETURN", ("local", "13")),
                 ("stepOut", "BREAKPOINT-JAVA", None),
                 ("next", "BREAKPOINT-AFTER", ("result", "26"))]:
-            start = time.monotonic()
+            start = time.perf_counter()
             dap.request(command, dict(threadId=stop["threadId"]))
             stop = dap.event("stopped", lambda body: body["reason"] == "step")
-            timings[command + "Ms"] = round((time.monotonic() - start) * 1000, 1)
+            timings.setdefault(command + "Ms", []).append(round((time.perf_counter() - start) * 1000, 1))
             frame, locals_ = stopped_frame(dap, stop)
             assert frame["line"] == marker(SOURCE, expected), (command, frame)
             if expected_local:
@@ -122,6 +122,8 @@ with tempfile.TemporaryDirectory(prefix="oas-jdi-") as output:
         print(json.dumps(dict(result="PASS", timings=timings,
                               coverage="deferred/loaded/replaced Java breakpoints, next/in/out, args/locals/fields/array, pause, stale handles, disconnect/EOF survives")))
     finally:
-        dap.close()
-        target.kill()
-        target.wait()
+        try:
+            dap.close()
+        finally:
+            target.kill()
+            target.wait()

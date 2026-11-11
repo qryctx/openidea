@@ -58,7 +58,7 @@ class Dap:
 
     def request(self, command, arguments=None, success=True):
         self.seq += 1
-        message = dict(seq=self.seq, type="request", command=command, arguments=arguments or {})
+        message = dict(seq=self.seq, type="request", command=command, arguments=arguments)
         payload = json.dumps(message, ensure_ascii=False).encode("utf-8")
         self.process.stdin.write(f"Content-Length: {len(payload)}\r\n\r\n".encode("ascii") + payload)
         self.process.stdin.flush()
