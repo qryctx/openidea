@@ -49,6 +49,25 @@ Gradle 自动生成的 wrapper 固定 distribution SHA-256：
 `7988ed071b2a07900e2ec715fca15c6ab72bce6db433af301fa7fa7e9407bd24`。
 Linux/macOS 可直接用同目录 `gradlew`（必要时 `sh gradlew`）；本轮实测范围为 Windows。
 
+## Windows 路径与取消
+
+AGP 默认拒绝中文工程路径；仅作显式实验，不改变所有用户工程的默认设置：
+
+```powershell
+python fixtures\android\build-fixtures.py --unicode-root "$env:USERPROFILE\oas 样例 space" --override-path-check --evidence "$env:TEMP\oas-unicode"
+python fixtures\android\cancel-probe.py --evidence "$env:TEMP\oas-cancel"
+```
+
+`--unicode-root` 必须是新目录，复制时不含 build/cache/local.properties。
+覆盖开关是 AGP 提示的 `-Pandroid.overridePathCheck=true`；不传它时实际退出码为 1。
+实测传开关后三个样例构建通过，但不等于所有 Windows 工具都支持 Unicode。
+
+取消实验是 Gradle init script 注入的 30 秒有界任务，不改样例 build scripts；
+仅向自有新进程组发 CTRL_BREAK。脚本退出 0 表示**测量已完成**，不是取消已通过，
+应读取 `cancel-result.json` 的 `status`、`exitCode` 和 `exitedWithin5Seconds`。
+本机 CTRL_BREAK 只产生 JVM thread dump，构建约 28 秒后自行成功结束，取消未达成。
+不使用默认用户缓存执行 `gradle --stop`，不按进程名结束 java/kotlin。
+
 ## 最小运行合同
 
 1. `:app:assembleDebug` 成功后，读取
