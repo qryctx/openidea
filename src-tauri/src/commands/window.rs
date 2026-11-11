@@ -395,14 +395,17 @@ use ide_core::updates::UpdateInfo;
 pub use ide_core::updates::{UpdateCheck, UpdateSource, UpdateStatus};
 
 pub(crate) fn update_endpoint_env() -> Option<String> {
+    if !crate::updates::allowed() {
+        return None;
+    }
     std::env::var("OPENIDEA_UPDATE_ENDPOINT").ok().filter(|s| !s.trim().is_empty())
 }
 
 /// Whether an update endpoint is configured: `plugins.updater.endpoints` in
-/// tauri.conf.json, or the `OPENIDEA_UPDATE_ENDPOINT` environment variable. Empty by
-/// default, and "Check for Updates…" is hidden then.
+/// tauri.conf.json, or the `OPENIDEA_UPDATE_ENDPOINT` environment variable.
+/// The v0 product build forbids updates regardless of configuration.
 pub fn updates_configured<R: tauri::Runtime>(app: &AppHandle<R>) -> bool {
-    !config_endpoints(app).is_empty() || update_endpoint_env().is_some()
+    crate::updates::allowed() && (!config_endpoints(app).is_empty() || update_endpoint_env().is_some())
 }
 
 const CNB_ENDPOINT: &str = "https://cnb.cool/l0ng-ai/openidea/-/releases/latest/download/latest.json";
@@ -437,15 +440,36 @@ fn is_nightly(version: &str) -> bool {
     version.contains("-nightly.")
 }
 
-fn updater(app: &AppHandle, source: UpdateSource) -> IdeResult<Option<tauri_plugin_updater::Updater>> {
+fn update_endpoints(
+    official: Vec<String>,
+    override_url: Option<String>,
+    source: UpdateSource,
+    nightly: bool,
+) -> Vec<String> {
+    if !crate::updates::allowed() {
+        return Vec::new();
+    }
+    match override_url.filter(|url| !url.trim().is_empty()) {
+        Some(url) => vec![url],
+        None => source_endpoints(official, source, nightly),
+    }
+}
+
+fn updater<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    source: UpdateSource,
+) -> IdeResult<Option<tauri_plugin_updater::Updater>> {
     use tauri_plugin_updater::UpdaterExt;
+    crate::updates::require_allowed()?;
     if !updates_configured(app) {
         return Ok(None);
     }
-    let endpoints = match update_endpoint_env() {
-        Some(url) => vec![url],
-        None => source_endpoints(config_endpoints(app), source, is_nightly(&app.package_info().version.to_string())),
-    };
+    let endpoints = update_endpoints(
+        config_endpoints(app),
+        update_endpoint_env(),
+        source,
+        is_nightly(&app.package_info().version.to_string()),
+    );
     let endpoints = endpoints
         .iter()
         .map(|u| u.parse().map_err(|e| IdeError::invalid(format!("update endpoint {u}: {e}"))))
@@ -466,7 +490,10 @@ pub async fn app_check_update(app: AppHandle, source: UpdateSource) -> IdeResult
     crate::updates::check(&app, Some(source)).await
 }
 
-pub(crate) async fn check_update(app: &AppHandle, source: UpdateSource) -> IdeResult<UpdateCheck> {
+pub(crate) async fn check_update<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    source: UpdateSource,
+) -> IdeResult<UpdateCheck> {
     let Some(updater) = updater(app, source)? else {
         return Ok(UpdateCheck { enabled: false, update: None });
     };
@@ -568,16 +595,27 @@ impl Drop for InstallingGuard {
 #[specta::specta]
 pub async fn app_install_update(
     app: AppHandle,
-    state: State<'_, AppState>,
     source: UpdateSource,
     request: RequestId,
     on_progress: Channel<UpdateProgress>,
 ) -> IdeResult<()> {
+    install_update(&app, source, request, on_progress).await
+}
+
+async fn install_update<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    source: UpdateSource,
+    request: RequestId,
+    on_progress: Channel<UpdateProgress>,
+) -> IdeResult<()> {
+    crate::updates::require_allowed()?;
+    use tauri::Manager;
+    let state = app.state::<AppState>();
     let _guard =
         InstallingGuard::acquire().ok_or_else(|| IdeError::unavailable("an update is already being installed"))?;
     let token = state.host.begin_request(request);
     let result = async {
-        let updater = updater(&app, source)?.ok_or_else(|| IdeError::unavailable("updates are not configured"))?;
+        let updater = updater(app, source)?.ok_or_else(|| IdeError::unavailable("updates are not configured"))?;
         let update = tokio::select! {
             r = updater.check() => r.map_err(|e| IdeError::unavailable(e.to_string()))?,
             _ = token.cancelled() => return Err(IdeError::cancelled()),
@@ -674,6 +712,57 @@ mod tests {
         assert_eq!(source_endpoints(vec![nightly.clone()], UpdateSource::Github, true), [nightly]);
         assert!(is_nightly("0.1.40-nightly.202611081417"));
         assert!(!is_nightly("0.1.40"));
+    }
+
+    #[test]
+    fn product_profile_controls_all_endpoint_overrides() {
+        let official = vec!["https://example.com/latest.json".into()];
+        for source in [UpdateSource::Github, UpdateSource::Cnb] {
+            for override_url in [None, Some("".into()), Some("  ".into()), Some("http://127.0.0.1:1/update".into())] {
+                let endpoints = update_endpoints(official.clone(), override_url.clone(), source, false);
+                if crate::updates::allowed() {
+                    match override_url.filter(|url| !url.trim().is_empty()) {
+                        Some(url) => assert_eq!(endpoints, vec![url]),
+                        None => assert_eq!(endpoints, source_endpoints(official.clone(), source, false)),
+                    }
+                } else {
+                    assert!(endpoints.is_empty());
+                }
+            }
+        }
+    }
+
+    #[cfg(openidea_v0)]
+    #[tokio::test]
+    async fn v0_rejects_check_and_install_before_creating_an_updater_or_reading_state() {
+        // No updater plugin or AppState: reaching either would panic, not report Unavailable.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let endpoint = format!("http://{}/latest.json", listener.local_addr().unwrap());
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context
+            .config_mut()
+            .plugins
+            .0
+            .insert("updater".into(), serde_json::json!({ "pubkey": "old-upstream-key", "endpoints": [endpoint] }));
+        let app = tauri::test::mock_builder().build(context).unwrap();
+        crate::updates::window_ready(app.handle(), "old-window", true, "zh-CN".into());
+        crate::updates::window_ready(app.handle(), "old-window", false, "en".into());
+        let automatic = crate::updates::check(app.handle(), None).await.unwrap();
+        assert!(!automatic.enabled);
+        assert!(automatic.update.is_none());
+        for source in [UpdateSource::Github, UpdateSource::Cnb] {
+            assert!(!updates_configured(app.handle()));
+            assert!(update_endpoint_env().is_none());
+            let manual = crate::updates::check(app.handle(), Some(source)).await.unwrap_err();
+            assert_eq!(manual.kind, ide_core::ErrorKind::Unavailable);
+            let check = check_update(app.handle(), source).await.unwrap_err();
+            assert_eq!(check.kind, ide_core::ErrorKind::Unavailable);
+            let install =
+                install_update(app.handle(), source, RequestId(1), Channel::new(|_| Ok(()))).await.unwrap_err();
+            assert_eq!(install.kind, ide_core::ErrorKind::Unavailable);
+        }
+        assert_eq!(listener.accept().unwrap_err().kind(), std::io::ErrorKind::WouldBlock);
     }
 
     #[test]

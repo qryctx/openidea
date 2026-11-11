@@ -127,6 +127,7 @@ pub fn run() {
     let window_state = window_state.with_filter(windows::keeps_window_state);
     #[cfg(not(target_os = "linux"))]
     let app = app.plugin(window_state.build());
+    #[cfg(not(openidea_v0))]
     let app = app
         // Inert until an endpoint is configured (see `commands::window::app_check_update`).
         .plugin(tauri_plugin_updater::Builder::new().build());

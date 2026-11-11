@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createRequire } from "node:module";
 import { claimSession, preferredVitePort, withDevConfig, worktreeId, worktreeRoot } from "./dev-session.ts";
 import type { DevSession } from "./dev-session.ts";
+import { buildProfile, withProfileConfig } from "./tauri-profile.ts";
 
 const require = createRequire(import.meta.url);
 const cli = require.resolve("@tauri-apps/cli/tauri.js");
@@ -47,7 +48,11 @@ async function runCli(args: string[]): Promise<number> {
 }
 
 async function main(): Promise<number> {
-  const args = process.argv.slice(2);
+  const requested = process.argv.slice(2);
+  const profile = buildProfile(requested[0], worktreeRoot);
+  // Pin the same value for Vite (including its .env files) and Cargo's build script.
+  process.env.VITE_OPENIDEA_PROFILE = profile;
+  const args = withProfileConfig(requested, profile);
   if (args[0] !== "dev" || args.includes("--help") || args.includes("-h") || args.includes("--release")) {
     return runCli(args);
   }
@@ -55,9 +60,13 @@ async function main(): Promise<number> {
     worktree: worktreeRoot,
     identifier: worktreeId(worktreeRoot),
     pid: process.pid,
+    profile,
   };
   const claim = await claimSession(session);
   if ("existing" in claim) {
+    if ((claim.existing.profile ?? "default") !== profile) {
+      throw new Error("Stop this worktree's development session before switching product profiles.");
+    }
     console.log("Development session already running for this worktree:");
     console.log(JSON.stringify(claim.existing, null, 2));
     console.log("Use pnpm dev:status to find its MCP port.");

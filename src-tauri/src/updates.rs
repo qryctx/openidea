@@ -11,6 +11,28 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 use tokio::sync::Notify;
 
+pub(crate) const fn allowed() -> bool {
+    !cfg!(openidea_v0)
+}
+
+pub(crate) fn require_allowed() -> IdeResult<()> {
+    if allowed() { Ok(()) } else { Err(disabled_error()) }
+}
+
+fn disabled_error() -> ide_core::IdeError {
+    ide_core::IdeError::unavailable("updates are disabled in the v0 product profile")
+}
+
+fn disabled_check(source: Option<UpdateSource>) -> Option<IdeResult<UpdateCheck>> {
+    if allowed() {
+        return None;
+    }
+    Some(match source {
+        Some(_) => Err(disabled_error()),
+        None => Ok(UpdateCheck { enabled: false, update: None }),
+    })
+}
+
 #[derive(Default)]
 pub struct Updates {
     started: AtomicBool,
@@ -39,7 +61,14 @@ fn automatic_enabled(app: &AppHandle) -> bool {
 }
 
 /// Called after an ordinary window has installed its event handlers. The task survives window closes and HMR.
-pub fn window_ready(app: &AppHandle, window: &str, ready: bool, system_locale: String) {
+pub fn window_ready<R: tauri::Runtime>(app: &AppHandle<R>, window: &str, ready: bool, system_locale: String) {
+    if !allowed() {
+        return;
+    }
+    window_ready_enabled(&app.state::<AppState>().app, window, ready, system_locale);
+}
+
+fn window_ready_enabled(app: &AppHandle, window: &str, ready: bool, system_locale: String) {
     if !ready {
         app.state::<AppState>().updates.forget_window(window);
         return;
@@ -77,7 +106,14 @@ pub fn window_ready(app: &AppHandle, window: &str, ready: bool, system_locale: S
 }
 
 /// `None` is an automatic check; explicit sources are manual checks and always return their result.
-pub async fn check(app: &AppHandle, source: Option<UpdateSource>) -> IdeResult<UpdateCheck> {
+pub async fn check<R: tauri::Runtime>(app: &AppHandle<R>, source: Option<UpdateSource>) -> IdeResult<UpdateCheck> {
+    if let Some(result) = disabled_check(source) {
+        return result;
+    }
+    check_enabled(&app.state::<AppState>().app, source).await
+}
+
+async fn check_enabled(app: &AppHandle, source: Option<UpdateSource>) -> IdeResult<UpdateCheck> {
     let state = app.state::<AppState>();
     let revision = state.updates.state.lock().revision;
     let _gate = state.updates.gate.lock().await;
@@ -162,6 +198,22 @@ fn ready_owner(preferred: Option<&str>, live: &[String], ready: &HashSet<String>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn disabled_product_never_enters_the_automatic_or_manual_check_coordinator() {
+        for source in [None, Some(UpdateSource::Github), Some(UpdateSource::Cnb)] {
+            let result = disabled_check(source);
+            if allowed() {
+                assert!(result.is_none());
+            } else if source.is_some() {
+                assert_eq!(result.unwrap().unwrap_err().kind, ide_core::ErrorKind::Unavailable);
+            } else {
+                let check = result.unwrap().unwrap();
+                assert!(!check.enabled);
+                assert!(check.update.is_none());
+            }
+        }
+    }
 
     #[test]
     fn notifications_only_target_live_owners_that_have_subscribed() {
