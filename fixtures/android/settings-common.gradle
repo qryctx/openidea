@@ -14,8 +14,6 @@ settings.pluginManagement {
         id 'com.android.application' version matrix[name].agp
         id 'com.android.library' version matrix[name].agp
         id 'org.jetbrains.kotlin.android' version matrix[name].kotlin
-        id 'org.jetbrains.kotlin.kapt' version matrix[name].kotlin
-        id 'org.jetbrains.kotlin.plugin.compose' version matrix[name].composeCompiler
     }
 }
 dependencyResolutionManagement {

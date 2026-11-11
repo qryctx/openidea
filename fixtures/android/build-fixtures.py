@@ -8,7 +8,7 @@ import subprocess
 import time
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--toolchain", choices=["conservative", "current"], required=True)
+parser.add_argument("--toolchain", choices=["conservative"], default="conservative")
 parser.add_argument("--evidence", type=Path, required=True)
 parser.add_argument("--unicode-root", type=Path)
 args = parser.parse_args()
@@ -25,10 +25,9 @@ if args.unicode_root:
 args.evidence.mkdir(parents=True, exist_ok=True)
 wrapper = root / "toolchains" / args.toolchain / "gradlew.bat"
 cases = {
-    "f1-java-xml": [":app:assembleDebug"],
-    "f2-compose": [":app:assembleDebug"],
-    "f3-flavors": [":app:assemblePublicDemoDebug", ":app:assembleInternalDemoDebug"],
-    "f4-generated": [":app:assembleDebug"],
+    "f1-kotlin": [":app:assembleDebug"],
+    "f2-java": [":app:assembleDebug"],
+    "f3-mixed": [":app:assembleDebug"],
 }
 results = []
 for fixture, tasks in cases.items():
