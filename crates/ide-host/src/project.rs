@@ -633,7 +633,7 @@ impl Host {
                     // Outside the app data dir: its path has spaces on macOS, which trips up build scripts.
                     dirs::home_dir()
                         .unwrap_or_else(|| self.data_dir.clone())
-                        .join(".openidea")
+                        .join(ide_core::project_dir::DIR)
                         .join("worktrees")
                         .join(project_key)
                 }),
@@ -1003,6 +1003,9 @@ impl Project {
     pub fn search_excludes(&self) -> Vec<String> {
         let mut out: Vec<String> =
             self.roots().excluded_globs().iter().map(|d| format!("{}/**", d.trim_start_matches('/'))).collect();
+        if ide_core::product::V0 {
+            out.extend([".openidea", ide_core::project_dir::DIR].map(|dir| format!("**/{dir}/**")));
+        }
         let settings = self.settings.effective();
         let names =
             settings.files.ignored_names.iter().cloned().chain(settings.project_structure.exclude_file_patterns());
@@ -1506,6 +1509,9 @@ fn linked_roots(root: &Path, settings: &ide_core::settings::Settings, detected: 
 
 fn exclude_globs(root: &Path, settings: &ide_core::settings::Settings, detected: &[SourceFolder]) -> Vec<String> {
     let mut globs = settings.file_excludes();
+    if ide_core::product::V0 {
+        globs.push(".openidea".into());
+    }
     globs.extend(linked_roots(root, settings, detected).excluded_globs());
     globs
 }

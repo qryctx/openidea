@@ -46,11 +46,31 @@ fn missing_file_is_empty() {
 }
 
 #[test]
+fn run_files_and_private_ignores_leave_the_other_product_untouched() {
+    let dir = tempfile::tempdir().unwrap();
+    let other_dir = if ide_core::product::V0 { ".openidea" } else { ".openidea-v0" };
+    let other = dir.path().join(other_dir);
+    fs::create_dir_all(&other).unwrap();
+    for file in ["run.toml", "run.local.toml", ".gitignore"] {
+        fs::write(other.join(file), "foreign content").unwrap();
+    }
+    assert!(load_user_configs(dir.path()).unwrap().is_empty());
+    let mut configs = sample();
+    configs[1].extras.local = true;
+    save_user_configs(dir.path(), &configs).unwrap();
+    assert_eq!(load_user_configs(dir.path()).unwrap(), configs);
+    assert!(ide_core::project_dir::path(dir.path(), "run.local.toml").is_file());
+    for file in ["run.toml", "run.local.toml", ".gitignore"] {
+        assert_eq!(fs::read_to_string(other.join(file)).unwrap(), "foreign content");
+    }
+}
+
+#[test]
 fn round_trip() {
     let dir = tempfile::tempdir().unwrap();
     let configs = sample();
     save_user_configs(dir.path(), &configs).unwrap();
-    assert!(dir.path().join(".openidea/run.toml").is_file());
+    assert!(user_configs_path(dir.path()).is_file());
     assert_eq!(load_user_configs(dir.path()).unwrap(), configs);
 
     // Saving a detected config persists it as a user config.
@@ -149,9 +169,9 @@ fn extras_round_trip_and_local_file() {
 
     let project = fs::read_to_string(user_configs_path(dir.path())).unwrap();
     assert!(!project.contains("\"user:tests\"\n"), "{project}");
-    let private = fs::read_to_string(dir.path().join(".openidea/run.local.toml")).unwrap();
+    let private = fs::read_to_string(ide_core::project_dir::path(dir.path(), "run.local.toml")).unwrap();
     assert!(private.contains("id = \"user:tests\""), "{private}");
-    let ignore = fs::read_to_string(dir.path().join(".openidea/.gitignore")).unwrap();
+    let ignore = fs::read_to_string(ide_core::project_dir::path(dir.path(), ".gitignore")).unwrap();
     assert!(ignore.lines().any(|l| l == "/run.local.toml"), "{ignore}");
 
     // Making it a project file moves it back.
@@ -159,7 +179,9 @@ fn extras_round_trip_and_local_file() {
     moved[2].extras.local = false;
     save_user_configs(dir.path(), &moved).unwrap();
     assert_eq!(load_user_configs(dir.path()).unwrap(), moved);
-    assert!(!fs::read_to_string(dir.path().join(".openidea/run.local.toml")).unwrap().contains("user:tests"));
+    assert!(
+        !fs::read_to_string(ide_core::project_dir::path(dir.path(), "run.local.toml")).unwrap().contains("user:tests")
+    );
 
     // Templates share run.toml without disturbing configurations.
     let mut template = sample().remove(1);
@@ -232,7 +254,9 @@ fn suppression_round_trip_and_resaving() {
     restored.extras.local = true;
     save_user_configs(dir.path(), &[restored]).unwrap();
     assert_eq!(load_suppressed_config_ids(dir.path()).unwrap(), vec![ids[1].clone()]);
-    assert!(fs::read_to_string(dir.path().join(".openidea/.gitignore")).unwrap().contains("/run.local.toml"));
+    assert!(
+        fs::read_to_string(ide_core::project_dir::path(dir.path(), ".gitignore")).unwrap().contains("/run.local.toml")
+    );
 }
 
 #[test]

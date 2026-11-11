@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RunConfig } from "@/platform/ipc";
 import { usePlatform } from "@/platform/platformInfo";
 import { registerRunConfigType } from "@/workbench/contributions";
@@ -13,6 +13,7 @@ import {
   newConfig,
   parseArgs,
   removeConfig,
+  runConfigInputChanged,
   upsertConfig,
   userConfigs,
   validateConfig,
@@ -37,6 +38,23 @@ const cfg = (over: Partial<RunConfig> & { id: string }): RunConfig => ({
   isTest: false,
   debugAdapter: null,
   ...over,
+});
+
+it("reloads only this product's run files and preserves ordinary build inputs", () => {
+  try {
+    for (const profile of ["default", "v0"]) {
+      vi.stubEnv("VITE_OPENIDEA_PROFILE", profile);
+      const own = profile === "v0" ? ".openidea-v0" : ".openidea";
+      const other = profile === "v0" ? ".openidea" : ".openidea-v0";
+      expect(runConfigInputChanged(`/p/${own}/run.toml`)).toBe(true);
+      expect(runConfigInputChanged(`/p/${own}/run.local.toml`)).toBe(profile === "v0");
+      expect(runConfigInputChanged(`/p/${other}/run.toml`)).toBe(false);
+      expect(runConfigInputChanged("/p/package.json")).toBe(true);
+      expect(runConfigInputChanged("/p/src/main.ts")).toBe(false);
+    }
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });
 
 describe("config merge / override", () => {

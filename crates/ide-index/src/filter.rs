@@ -198,7 +198,7 @@ impl PathFilter {
     }
 
     fn skip_name(name: &str) -> bool {
-        ALWAYS_SKIP.contains(&name)
+        ALWAYS_SKIP.contains(&name) || (ide_core::product::V0 && ide_core::project_dir::is_metadata_name(name))
     }
 
     /// Whether a path reported by the watcher should be left out (outside the
@@ -330,6 +330,22 @@ impl Drop for Batch {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v0_excludes_both_products_metadata_from_walks_and_watcher_updates() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(tmp.path()).unwrap();
+        for path in [".openidea/settings.toml", ".openidea-v0/run.toml", "src/Main.java"] {
+            touch(&root, path);
+        }
+        let filter = PathFilter::new(&root, &vec![].into(), &[]);
+        let found = filter.walk(&root, &AtomicBool::new(false));
+        for path in [".openidea/settings.toml", ".openidea-v0/run.toml"] {
+            assert_eq!(filter.is_excluded(&root.join(path), false), ide_core::product::V0);
+            assert_eq!(found.iter().any(|file| file.path == root.join(path)), !ide_core::product::V0);
+        }
+        assert!(found.iter().any(|file| file.path == root.join("src/Main.java")));
+    }
 
     fn touch(root: &Path, rel: &str) {
         let p = root.join(rel);

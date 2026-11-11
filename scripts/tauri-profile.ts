@@ -1,5 +1,6 @@
 import { loadEnv } from "vite";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 export type ProductProfile = "default" | "v0";
 
@@ -12,6 +13,14 @@ export function productProfile(value: string | undefined): ProductProfile {
 export function buildProfile(command: string | undefined, root: string): ProductProfile {
   const mode = command === "dev" ? "development" : "production";
   return productProfile(loadEnv(mode, root, "VITE_OPENIDEA_PROFILE").VITE_OPENIDEA_PROFILE);
+}
+
+export function profileTargetDirectory(
+  profile: ProductProfile,
+  root: string,
+  current: string | undefined,
+): string | undefined {
+  return profile === "v0" ? resolve(root, current ?? "target", "v0") : current;
 }
 
 export function withProfileConfig(args: string[], profile: ProductProfile): string[] {

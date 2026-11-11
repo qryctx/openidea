@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createRequire } from "node:module";
 import { claimSession, preferredVitePort, withDevConfig, worktreeId, worktreeRoot } from "./dev-session.ts";
 import type { DevSession } from "./dev-session.ts";
-import { buildProfile, withProfileConfig } from "./tauri-profile.ts";
+import { buildProfile, profileTargetDirectory, withProfileConfig } from "./tauri-profile.ts";
 
 const require = createRequire(import.meta.url);
 const cli = require.resolve("@tauri-apps/cli/tauri.js");
@@ -52,13 +52,15 @@ async function main(): Promise<number> {
   const profile = buildProfile(requested[0], worktreeRoot);
   // Pin the same value for Vite (including its .env files) and Cargo's build script.
   process.env.VITE_OPENIDEA_PROFILE = profile;
+  const target = profileTargetDirectory(profile, worktreeRoot, process.env.CARGO_TARGET_DIR);
+  if (target) process.env.CARGO_TARGET_DIR = target;
   const args = withProfileConfig(requested, profile);
   if (args[0] !== "dev" || args.includes("--help") || args.includes("-h") || args.includes("--release")) {
     return runCli(args);
   }
   const session: DevSession = {
     worktree: worktreeRoot,
-    identifier: worktreeId(worktreeRoot),
+    identifier: worktreeId(worktreeRoot, profile),
     pid: process.pid,
     profile,
   };

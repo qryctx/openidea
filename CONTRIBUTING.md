@@ -54,7 +54,27 @@ Language-server-based commit analysis and modifications are off in v0; Git
 warnings, hooks and the changed-line TODO check remain available.
 Tool-window layouts, named layouts and editor sessions have separate v0 storage
 keys: trying v0 neither migrates nor overwrites the default layout or open tabs.
-File contents and settings are still shared; ordinary save/close safeguards apply.
+Source files are still shared; ordinary save/close safeguards apply.
+
+The internal v0 application identity is `dev.qryctx.openidea.v0`; debug identities
+append the existing canonical-worktree hash. This is a replaceable development
+identifier, not a release brand or trademark decision. App config/data/logs and
+Windows/Linux webview storage are separate from the default product. Rebuildable
+local data accepts only `OPENIDEA_V0_LOCAL_DATA_DIR` in v0 (the same absolute-path
+and writeability checks as the default override); `OPENIDEA_LOCAL_DATA_DIR` is
+ignored there. Roaming-to-local migration stays inside this product's app dirs,
+not an import from the default product.
+
+v0 reads/writes project settings, workspace, run configurations and private state
+only under `.openidea-v0`, without importing `.openidea`. Credentials use the
+same OS store implementation with an isolated service namespace and the existing
+per-index UUID. The optional launcher is `openidea-v0` (`openidea-v0.cmd` on
+Windows), never a replacement for `openidea`. Both profiles are build-time choices.
+The Tauri wrapper puts v0 binaries under `target/v0` (or `<CARGO_TARGET_DIR>/v0`)
+and leaves default output unchanged, so the two launchers cannot replace each
+other's executable. Distinct profile launchers and Vite origins do not reuse the
+other product's backend. Direct Cargo invocations must choose separate output
+directories themselves when keeping both profiles running.
 
 AI, MCP, remote/deployment, marketplace/plugins, notebooks, databases, HTTP,
 GraphQL and advanced feature activations are excluded, not CSS-hidden. Settings

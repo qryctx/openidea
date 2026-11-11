@@ -5,7 +5,7 @@ use std::ffi::OsStr;
 use std::io;
 use std::path::{Path, PathBuf};
 
-pub const COMMAND: &str = "openidea";
+pub const COMMAND: &str = ide_core::product::CLI_COMMAND;
 const LAUNCHER: &str = "Contents/Resources/bin/openidea";
 const SYSTEM_DIR: &str = "/usr/local/bin";
 
@@ -128,7 +128,7 @@ pub fn stable_executable(exe: &Path, appimage: Option<&Path>) -> io::Result<Path
 }
 
 pub fn wrapper_path(dir: &Path, windows: bool) -> PathBuf {
-    dir.join(if windows { "openidea.cmd" } else { COMMAND })
+    dir.join(if windows { ide_core::product::CLI_WINDOWS_COMMAND } else { COMMAND })
 }
 
 fn wrapper(exe: &Path, windows: bool) -> io::Result<String> {
@@ -254,7 +254,7 @@ fn resolves_to(path_var: Option<&OsStr>, command: &Path) -> bool {
 
 fn user_bin() -> io::Result<PathBuf> {
     if cfg!(windows) {
-        dirs::data_local_dir().map(|dir| dir.join("OpenIDEA/bin"))
+        dirs::data_local_dir().map(|dir| dir.join(ide_core::product::CLI_WINDOWS_BIN))
     } else {
         dirs::home_dir().map(|dir| dir.join(".local/bin"))
     }
@@ -263,7 +263,7 @@ fn user_bin() -> io::Result<PathBuf> {
 
 pub fn install_current() -> io::Result<Installation> {
     let exe = std::env::current_exe()?;
-    if cfg!(target_os = "macos") {
+    if cfg!(target_os = "macos") && !ide_core::product::V0 {
         let launcher = bundled_launcher(&exe).ok_or_else(|| {
             io::Error::new(io::ErrorKind::NotFound, "install the command from the packaged OpenIDEA app")
         })?;
@@ -287,7 +287,7 @@ pub fn install_current() -> io::Result<Installation> {
 }
 
 pub fn uninstall_current() -> io::Result<Vec<PathBuf>> {
-    if cfg!(target_os = "macos") {
+    if cfg!(target_os = "macos") && !ide_core::product::V0 {
         let links = installed(&link_dirs(dirs::home_dir().as_deref()));
         uninstall(&links)?;
         return Ok(links);
@@ -305,6 +305,16 @@ pub fn uninstall_current() -> io::Result<Vec<PathBuf>> {
 #[cfg(test)]
 mod wrapper_tests {
     use super::*;
+
+    #[test]
+    fn installation_does_not_replace_the_other_products_command() {
+        let dir = tempfile::tempdir().unwrap();
+        let other = dir.path().join(if ide_core::product::V0 { "openidea.cmd" } else { "openidea-v0.cmd" });
+        std::fs::write(&other, "other product").unwrap();
+        install_wrapper(&dir.path().join("app.exe"), dir.path(), true).unwrap();
+        uninstall_wrapper(dir.path(), true).unwrap();
+        assert_eq!(std::fs::read_to_string(other).unwrap(), "other product");
+    }
 
     #[test]
     fn wrappers_install_update_and_remove_only_their_own_files() {
@@ -408,7 +418,7 @@ mod wrapper_tests {
         assert_eq!(output.status.code(), Some(7));
         assert_eq!(String::from_utf8(output.stdout).unwrap().replace("\r\n", "\n"), "--cli\na b\n中文\nx&y\n");
         let check = dir.path().join("check.cmd");
-        std::fs::write(&check, "@echo off\r\nfor /f \"tokens=2 delims=:\" %%c in ('\"%SystemRoot%\\System32\\chcp.com\"') do set \"before=%%c\"\r\ncall \"%~dp0bin\\openidea.cmd\" example\r\nset \"code=%errorlevel%\"\r\nfor /f \"tokens=2 delims=:\" %%c in ('\"%SystemRoot%\\System32\\chcp.com\"') do set \"after=%%c\"\r\nif not \"%before%\"==\"%after%\" exit /b 99\r\nexit /b %code%\r\n").unwrap();
+        std::fs::write(&check, format!("@echo off\r\nfor /f \"tokens=2 delims=:\" %%c in ('\"%SystemRoot%\\System32\\chcp.com\"') do set \"before=%%c\"\r\ncall \"%~dp0bin\\{}\" example\r\nset \"code=%errorlevel%\"\r\nfor /f \"tokens=2 delims=:\" %%c in ('\"%SystemRoot%\\System32\\chcp.com\"') do set \"after=%%c\"\r\nif not \"%before%\"==\"%after%\" exit /b 99\r\nexit /b %code%\r\n", ide_core::product::CLI_WINDOWS_COMMAND)).unwrap();
         let output = std::process::Command::new("cmd.exe")
             .current_dir(dir.path())
             .args(["/d", "/s", "/c"])

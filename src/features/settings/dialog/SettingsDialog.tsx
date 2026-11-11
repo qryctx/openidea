@@ -46,6 +46,7 @@ import { builtinSpec, pageLabels } from "../pages/registry";
 import { PageErrorBoundary } from "./PageErrorBoundary";
 import styles from "./SettingsDialog.module.css";
 import { tx } from "@/platform/i18n";
+import { isV0Profile } from "@/platform/productProfile";
 
 /** Keys of the nodes above `key`, root first. */
 function ancestorKeys(nodes: readonly PageNode[], key: string): string[] {
@@ -179,7 +180,11 @@ function PageHost({
         {scope === "project" && (
           <div className={styles.scopeNote}>
             <Icon name="info" size={14} />
-            <T>Saved to .openidea/settings.toml in this project; overrides the global value.</T>
+            {isV0Profile() ? (
+              <T>Saved to .openidea-v0/settings.toml in this project; overrides the global value.</T>
+            ) : (
+              <T>Saved to .openidea/settings.toml in this project; overrides the global value.</T>
+            )}
           </div>
         )}
         {globalNote && (

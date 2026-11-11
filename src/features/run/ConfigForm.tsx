@@ -429,7 +429,11 @@ export function ConfigForm({ config, all, type, errors, template, onChange, modi
                   checked={!config.local}
                   onChange={(shared) => update({ local: !shared })}
                   label="Store as project file"
-                  aria-label="Store as project file (.openidea/run.toml); otherwise in the workspace (.openidea/run.local.toml)"
+                  aria-label={
+                    isV0Profile()
+                      ? "Store as project file (.openidea-v0/run.toml); otherwise in the workspace (.openidea-v0/run.local.toml)"
+                      : "Store as project file (.openidea/run.toml); otherwise in the workspace (.openidea/run.local.toml)"
+                  }
                 />
               </div>
             </div>

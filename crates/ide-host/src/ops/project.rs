@@ -98,7 +98,7 @@ fn require_attachment_trust(host: &Host, path: &Path) -> IdeResult<()> {
 
 fn keep_attachment_private(root: &Path, workspace: &ide_workspace::workspace::Workspace) -> IdeResult<()> {
     if !workspace.is_container(root) {
-        ide_vcs::changelists::ensure_ignored(&root.join(".openidea"), &["/workspace.json"])?;
+        ide_vcs::changelists::ensure_ignored(&ide_core::project_dir::path(root, ""), &["/workspace.json"])?;
     }
     Ok(())
 }

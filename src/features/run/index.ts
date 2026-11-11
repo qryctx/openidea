@@ -49,7 +49,7 @@ import { liveServiceSession, serviceSessions } from "./serviceSessions";
 import { ServiceImportHost } from "./serviceImport";
 import { cmakeBuildId } from "./cmake";
 import { runBeforeLaunch } from "./beforeLaunch";
-import { compoundChildren } from "./configs";
+import { compoundChildren, runConfigInputChanged } from "./configs";
 import { containerDebuggable, remoteDebugBlocked } from "./remote";
 import { debugInContainer } from "./containerDebug";
 import { isDebugOnly, registerBuiltinTypes } from "./types";
@@ -341,9 +341,6 @@ function rerunActive() {
 function useRunningCount(): number | null {
   return useRun((s) => s.sessions.filter(isLive).length || null);
 }
-
-const CONFIG_FILES =
-  /(?:^|\/)(?:\.openidea\/run\.toml|package\.json|deno\.jsonc?|Cargo\.toml|build\.gradle(?:\.kts)?|pom\.xml|go\.(?:mod|work)|pyproject\.toml|setup\.cfg|pytest\.ini|manage\.py|Makefile|justfile|CMakeLists\.txt|CMakeCache\.txt|index-[^/]+\.json)$/;
 
 let reloadTimer: ReturnType<typeof setTimeout> | undefined;
 function scheduleReload() {
@@ -753,7 +750,7 @@ export function activate(): () => void {
       dropStaleContextConfigs(e.removed);
       if (paths.some((p) => /(?:^|\/)go\.(?:mod|work)$/.test(p))) invalidateGoModules();
       if (paths.some((p) => p.endsWith("/__init__.py"))) invalidatePythonPackages();
-      if (paths.some((p) => CONFIG_FILES.test(p))) scheduleReload();
+      if (paths.some(runConfigInputChanged)) scheduleReload();
     }),
     useContextKeys.subscribe((s, prev) => {
       if (prev["build.running"] && !s["build.running"]) scheduleReload();

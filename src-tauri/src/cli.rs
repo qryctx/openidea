@@ -39,7 +39,11 @@ fn client(identifier: &str, args: &[String]) -> Result<(), String> {
     let diff = matches!(command, Command::Diff(_));
     let targets = match command {
         Command::Help => {
-            print!("{}", args::USAGE);
+            if ide_core::product::V0 {
+                print!("{}", args::USAGE.replace("openidea", ide_cli::install::COMMAND));
+            } else {
+                print!("{}", args::USAGE);
+            }
             return Ok(());
         }
         Command::Version => {

@@ -95,7 +95,7 @@ use std::time::{Duration, Instant};
 const STATE_FILE: &str = "state.json";
 const LINKS_FILE: &str = "links.json";
 /// Project plugins live here, relative to a project root.
-pub const DEV_PLUGINS_DIR: &str = ".openidea/plugins";
+pub const DEV_PLUGINS_DIR: &str = ide_core::product::DEV_PLUGINS_DIR;
 
 #[derive(Default, Serialize, Deserialize)]
 struct PersistedState {

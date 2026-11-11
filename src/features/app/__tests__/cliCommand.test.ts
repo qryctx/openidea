@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { getContext } from "@/platform/context";
 import { provideNotificationService } from "@/workbench/contributions";
 
@@ -18,6 +18,24 @@ const run = (id: string) =>
 beforeEach(() => {
   vi.resetAllMocks();
   provideNotificationService({ notify, expire: () => {} });
+});
+
+afterEach(() => vi.unstubAllEnvs());
+
+it("labels the isolated v0 command without changing the stable action ids", async () => {
+  vi.stubEnv("VITE_OPENIDEA_PROFILE", "v0");
+  expect(cliActions().find((action) => action.id === "app.installCli")!.title).toBe("Install 'openidea-v0' Command");
+  install.mockResolvedValue({ path: "C:/v0/bin/openidea-v0.cmd", pathDirectory: null });
+  await run("app.installCli");
+  expect(notify).toHaveBeenCalledWith(
+    expect.objectContaining({
+      title: "The openidea-v0 command is installed",
+      body: expect.stringContaining("use the openidea-v0 command"),
+    }),
+  );
+  uninstall.mockResolvedValue([]);
+  await run("app.uninstallCli");
+  expect(notify).toHaveBeenCalledWith(expect.objectContaining({ title: "The openidea-v0 command is not installed" }));
 });
 
 it("explains the Linux PATH step when the user bin is missing from PATH", async () => {

@@ -49,8 +49,9 @@ impl SourceMirror {
             if kind.is_dir() {
                 if !matches!(
                     entry.file_name().to_str(),
-                    Some(".git" | ".gradle" | "build" | "target" | "node_modules" | ".idea" | ".openidea")
-                ) {
+                    Some(".git" | ".gradle" | "build" | "target" | "node_modules" | ".idea")
+                ) && !ide_core::project_dir::is_metadata_name(&entry.file_name().to_string_lossy())
+                {
                     self.scan(&path)?;
                 }
             } else if matches!(path.extension().and_then(|s| s.to_str()), Some("kt" | "java")) {

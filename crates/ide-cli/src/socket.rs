@@ -204,6 +204,11 @@ mod tests {
         let release = socket_path("ai.l0ng.openidea").unwrap();
         let dev = socket_path("ai.l0ng.openidea.dev.w158e9c5954b7bf64").unwrap();
         assert_ne!(release, dev);
+        let v0 = socket_path("dev.qryctx.openidea.v0").unwrap();
+        let v0_dev = socket_path("dev.qryctx.openidea.v0.dev.w158e9c5954b7bf64").unwrap();
+        assert_ne!(release, v0);
+        assert_ne!(dev, v0_dev);
+        assert_ne!(v0, v0_dev);
         assert!(dev.as_os_str().len() < 100 || cfg!(unix));
     }
 

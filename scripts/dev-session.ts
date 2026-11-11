@@ -1,15 +1,17 @@
 import { realpathSync } from "node:fs";
 import { createConnection, createServer, type Server } from "node:net";
 import { fileURLToPath } from "node:url";
+import type { ProductProfile } from "./tauri-profile.ts";
 
 export const worktreeRoot = realpathSync(fileURLToPath(new URL("..", import.meta.url)));
 
-export function worktreeId(root: string): string {
+export function worktreeId(root: string, profile: ProductProfile = "default"): string {
   let hash = 0xcbf29ce484222325n;
   for (const byte of Buffer.from(root)) {
     hash = BigInt.asUintN(64, (hash ^ BigInt(byte)) * 0x100000001b3n);
   }
-  return `ai.l0ng.openidea.dev.w${hash.toString(16).padStart(16, "0")}`;
+  const appId = profile === "v0" ? "dev.qryctx.openidea.v0" : "ai.l0ng.openidea";
+  return `${appId}.dev.w${hash.toString(16).padStart(16, "0")}`;
 }
 
 export interface DevSession {
@@ -21,7 +23,8 @@ export interface DevSession {
 }
 
 export function preferredVitePort(identifier: string): number {
-  return 15000 + (Number.parseInt(identifier.slice(-8), 16) % 20000);
+  const offset = identifier.startsWith("dev.qryctx.openidea.v0.") ? 20000 : 0;
+  return 15000 + offset + (Number.parseInt(identifier.slice(-8), 16) % 20000);
 }
 
 function readSession(port: number): Promise<DevSession | undefined> {

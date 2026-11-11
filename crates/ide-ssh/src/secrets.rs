@@ -17,7 +17,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-const SERVICE: &str = "ai.l0ng.openidea";
+const SERVICE: &str = ide_core::product::APP_ID;
 
 /// Serialises read-modify-write of the index files (several stores may share one).
 static LOCK: Mutex<()> = Mutex::new(());
@@ -421,6 +421,29 @@ mod tests {
 
     fn with_fake(path: &std::path::Path, vault: &Arc<FakeVault>) -> SecretFile {
         SecretFile::with_vault(path.to_path_buf(), |v| serde_json::from_value(v).ok(), vault.clone())
+    }
+
+    #[test]
+    fn credential_namespace_preserves_uuid_suffix_and_does_not_read_other_product() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = Arc::new(FakeVault::default());
+        let other = if ide_core::product::V0 { "ai.l0ng.openidea" } else { "dev.qryctx.openidea.v0" };
+        let id = new_id();
+        let foreign_service = format!("{other}/{id}");
+        vault.set(&foreign_service, "host", "foreign secret").unwrap();
+        let path = tmp.path().join("index.json");
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&Index { id: id.clone(), keys: BTreeSet::from(["host".into()]) }).unwrap(),
+        )
+        .unwrap();
+        let file = with_fake(&path, &vault);
+        assert_eq!(file.get("host"), None);
+        file.set("host", "own secret").unwrap();
+        assert_eq!(file.get("host").as_deref(), Some("own secret"));
+        assert_eq!(vault.get(&format!("{SERVICE}/{id}"), "host").unwrap(), "own secret");
+        file.delete("host");
+        assert_eq!(vault.get(&foreign_service, "host").unwrap(), "foreign secret");
     }
 
     const OLD: &str = r#"{"https://a.example": "me\nold-a", "https://b.example": "me\nold-b"}"#;

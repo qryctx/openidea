@@ -7,14 +7,22 @@ use std::path::{Path, PathBuf};
 
 /// Moves the rebuildable local data (tools, language servers, indexes, caches);
 /// configuration and roaming data keep following the OS.
-pub const LOCAL_DATA_ENV: &str = "OPENIDEA_LOCAL_DATA_DIR";
+pub const LOCAL_DATA_ENV: &str = ide_core::product::LOCAL_DATA_ENV;
 
 /// `$OPENIDEA_LOCAL_DATA_DIR/<identifier>` when set, else the OS local data directory
 /// (Tauri's `app_local_data_dir`). The identifier keeps release and per-worktree
 /// debug builds apart under one root. A set but unusable path is an error, never a
 /// silent fallback to the OS location.
 pub fn local_data_dir(identifier: &str) -> Result<PathBuf, String> {
-    resolve_local(std::env::var_os(LOCAL_DATA_ENV), dirs::data_local_dir(), identifier)
+    resolve_environment(|name| std::env::var_os(name), dirs::data_local_dir(), identifier)
+}
+
+fn resolve_environment(
+    read: impl Fn(&str) -> Option<OsString>,
+    os: Option<PathBuf>,
+    identifier: &str,
+) -> Result<PathBuf, String> {
+    resolve_local(read(LOCAL_DATA_ENV), os, identifier)
 }
 
 fn resolve_local(var: Option<OsString>, os: Option<PathBuf>, identifier: &str) -> Result<PathBuf, String> {
@@ -303,6 +311,30 @@ fn relative_wrapper(text: &str, source: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_override_only_reads_this_products_variable_and_validates_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let other_env = if ide_core::product::V0 { "OPENIDEA_LOCAL_DATA_DIR" } else { "OPENIDEA_V0_LOCAL_DATA_DIR" };
+        let os = tmp.path().join("os");
+        let foreign = tmp.path().join("foreign");
+        let resolve = |values: &[(&str, OsString)]| {
+            resolve_environment(
+                |name| values.iter().find(|(key, _)| *key == name).map(|(_, value)| value.clone()),
+                Some(os.clone()),
+                ide_core::product::APP_ID,
+            )
+        };
+        assert_eq!(resolve(&[(other_env, foreign.clone().into())]).unwrap(), os.join(ide_core::product::APP_ID));
+        assert!(!foreign.exists());
+        let own = tmp.path().join("own");
+        assert_eq!(
+            resolve(&[(other_env, foreign.clone().into()), (LOCAL_DATA_ENV, own.clone().into())]).unwrap(),
+            own.join(ide_core::product::APP_ID)
+        );
+        assert!(!foreign.exists());
+        assert!(resolve(&[(LOCAL_DATA_ENV, "relative".into())]).unwrap_err().contains(LOCAL_DATA_ENV));
+    }
 
     #[test]
     fn local_dir_follows_the_os_unless_the_variable_is_set() {

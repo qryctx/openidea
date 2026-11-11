@@ -6,7 +6,7 @@ use specta::Type;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-pub const FILE: &str = ".openidea/workspace.json";
+pub const FILE: &str = ide_core::product::WORKSPACE_FILE;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -163,6 +163,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn workspace_does_not_read_or_modify_the_other_product_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(tmp.path()).unwrap();
+        let other_dir = if ide_core::product::V0 { ".openidea" } else { ".openidea-v0" };
+        let other = root.join(other_dir).join("workspace.json");
+        std::fs::create_dir_all(other.parent().unwrap()).unwrap();
+        std::fs::write(&other, "not a valid workspace").unwrap();
+        assert_eq!(Workspace::load(&root).unwrap(), None);
+        let saved = Workspace::attach(&root, "This product", vec![root.clone()]).unwrap();
+        assert_eq!(Workspace::load(&root).unwrap(), Some(saved));
+        assert_eq!(std::fs::read_to_string(other).unwrap(), "not a valid workspace");
+    }
+
+    #[test]
     fn update_cannot_turn_a_container_into_an_attachment() {
         let tmp = tempfile::tempdir().unwrap();
         let root = dunce::canonicalize(tmp.path()).unwrap();
@@ -219,7 +233,7 @@ mod tests {
         let saved = Workspace::save(&root, " Full stack ", vec![project.clone(), project.clone()], true).unwrap();
         assert_eq!(saved.projects.len(), 1);
         assert_eq!(Workspace::load(&root).unwrap(), Some(saved));
-        assert!(!project.join(".openidea").exists());
+        assert!(!ide_core::project_dir::path(&project, "").exists());
         assert!(Workspace::save(&root, "Other", vec![], true).is_err());
         assert_eq!(Workspace::load(&root).unwrap().unwrap().name, "Full stack");
     }

@@ -1,6 +1,7 @@
 import { worktreeId, worktreeRoot } from "./dev-session.ts";
+import { buildProfile } from "./tauri-profile.ts";
 
-const identifier = worktreeId(worktreeRoot);
+const identifier = worktreeId(worktreeRoot, buildProfile("dev", worktreeRoot));
 
 function inspectBridge(port: number): Promise<unknown | undefined> {
   return new Promise((resolve) => {

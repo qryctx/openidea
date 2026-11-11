@@ -56,7 +56,9 @@ impl IgnoredNames {
     }
 
     pub fn is_ignored_name(&self, name: &str) -> bool {
-        self.exact.iter().any(|e| e == name) || self.wildcards.iter().any(|w| wildcard(w.as_bytes(), name.as_bytes()))
+        (crate::product::V0 && crate::project_dir::is_metadata_name(name))
+            || self.exact.iter().any(|e| e == name)
+            || self.wildcards.iter().any(|w| wildcard(w.as_bytes(), name.as_bytes()))
     }
 
     /// Whether any segment of a `/`-separated relative path is ignored.
@@ -89,6 +91,22 @@ fn wildcard(p: &[u8], s: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(openidea_v0)]
+    #[test]
+    fn v0_hides_both_products_metadata_even_with_empty_user_patterns() {
+        let names = IgnoredNames::new(&[]);
+        for path in [
+            ".openidea/settings.toml",
+            ".openidea-v0/run.toml",
+            "nested/.openidea-v0/workspace.json",
+            ".OpenIdea/settings.toml",
+        ] {
+            assert!(names.is_ignored_path(path));
+        }
+        assert!(!names.is_ignored_path("src/Main.java"));
+        assert!(!names.is_ignored_path(".openidea-v0-other/Main.java"));
+    }
 
     fn defaults() -> IgnoredNames {
         IgnoredNames::new(&DEFAULT_IGNORED_NAMES.iter().map(|s| s.to_string()).collect::<Vec<_>>())

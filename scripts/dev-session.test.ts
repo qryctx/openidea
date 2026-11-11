@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it } from "vitest";
 import { createServer, type Server } from "node:net";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { claimSession, preferredVitePort, withDevConfig, worktreeId } from "./dev-session.ts";
 
 const servers: Server[] = [];
@@ -25,6 +29,25 @@ async function freePort(): Promise<number> {
 }
 
 describe("development worktrees", () => {
+  it("keeps module-based worktree identity stable when launched from different working directories", () => {
+    const root = mkdtempSync(join(tmpdir(), "openidea-cwd-"));
+    const sub = join(root, "sub");
+    mkdirSync(sub);
+    const module = new URL("./dev-session.ts", import.meta.url).href;
+    const script = `import { worktreeRoot, worktreeId } from ${JSON.stringify(module)}; console.log(JSON.stringify([worktreeRoot, worktreeId(worktreeRoot), worktreeId(worktreeRoot, "v0")]));`;
+    try {
+      const outputs = [root, sub].map((cwd) => {
+        const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], { cwd, encoding: "utf8" });
+        expect(result.status, result.stderr).toBe(0);
+        return JSON.parse(result.stdout) as string[];
+      });
+      expect(outputs[0]).toEqual(outputs[1]);
+      expect(outputs[0]![1]).not.toBe(outputs[0]![2]);
+    } finally {
+      rmSync(root, { recursive: true });
+    }
+  });
+
   it("keeps Vite origins stable and uses an available port when the preferred port is occupied", async () => {
     const { createServer: createVite } = await import("vite");
     const preferred = preferredVitePort(worktreeId("/repo/idea"));
@@ -53,6 +76,27 @@ describe("development worktrees", () => {
     expect(worktreeId("/repo/idea")).toBe("ai.l0ng.openidea.dev.w158e9c5954b7bf64");
     expect(worktreeId("/repo/idea")).not.toBe(worktreeId("/repo/idea-other"));
     expect(worktreeId("/repo/项目")).not.toBe(worktreeId("/repo/项目2"));
+    expect(worktreeId("/repo/idea", "v0")).toBe("dev.qryctx.openidea.v0.dev.w158e9c5954b7bf64");
+    expect(worktreeId("/repo/idea", "v0")).not.toBe(worktreeId("/repo/idea"));
+    expect(worktreeId("/repo/idea", "v0")).not.toBe(worktreeId("/repo/idea-other", "v0"));
+    expect(preferredVitePort(worktreeId("/repo/idea", "v0"))).not.toBe(preferredVitePort(worktreeId("/repo/idea")));
+  });
+
+  it("does not reuse another product's backend for the same worktree", async () => {
+    const port = await freePort();
+    for (const profile of ["default", "v0"] as const) {
+      const claim = await claimSession(
+        { worktree: "/repo/idea", identifier: worktreeId("/repo/idea", profile), pid: process.pid, profile },
+        port,
+      );
+      expect("server" in claim).toBe(true);
+      if ("server" in claim) servers.push(claim.server);
+    }
+    const repeated = await claimSession(
+      { worktree: "/repo/idea", identifier: worktreeId("/repo/idea", "v0"), pid: process.pid, profile: "v0" },
+      port,
+    );
+    expect("existing" in repeated && repeated.existing.profile).toBe("v0");
   });
 
   it("allows exactly one launcher during concurrent starts and releases the lock", async () => {

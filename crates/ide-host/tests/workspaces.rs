@@ -40,7 +40,7 @@ async fn linked_projects_share_navigation_but_keep_files_repositories_and_run_di
     assert_eq!(ops::project::attach_workspace(&host, "main", &roots[1]).unwrap().as_ref(), root.as_path());
     ops::project::attach_workspace(&host, "main", &roots[1]).unwrap();
     assert_eq!(project.content_roots(), roots);
-    assert!(!root.join(".openidea/.gitignore").exists());
+    assert!(!ide_core::project_dir::path(&root, ".gitignore").exists());
     assert!(project.index.wait_idle(Duration::from_secs(10)));
     assert!(project.index.find_files("internal-needle", 100).is_empty());
     assert!(project.index.find_files("workspace.json", 100).is_empty());
@@ -96,9 +96,9 @@ async fn linked_projects_share_navigation_but_keep_files_repositories_and_run_di
     assert_eq!(project.content_roots(), vec![roots[0].clone()]);
     assert!(project.documents.text_of(&roots[0].join("same.txt")).unwrap().starts_with("unsaved"));
     assert!(roots[1].join("same.txt").exists());
-    assert!(!roots[1].join(".openidea").exists());
+    assert!(!ide_core::project_dir::path(&roots[1], "").exists());
     let invalid = base.join("invalid");
-    std::fs::create_dir_all(invalid.join(".openidea")).unwrap();
+    std::fs::create_dir_all(ide_core::project_dir::path(&invalid, "")).unwrap();
     std::fs::write(invalid.join(ide_workspace::workspace::FILE), "broken").unwrap();
     assert!(host.open_project("main", &invalid).is_err());
     assert!(Arc::ptr_eq(&host.project("main").unwrap(), &project));
@@ -247,7 +247,10 @@ async fn attach_and_detach_preserve_the_primary_project_session() {
     assert!(!base.join("data/workspaces").exists());
     assert_eq!(Workspace::load(&roots[0]).unwrap().unwrap().projects, roots);
     assert!(
-        std::fs::read_to_string(roots[0].join(".openidea/.gitignore")).unwrap().lines().any(|l| l == "/workspace.json")
+        std::fs::read_to_string(ide_core::project_dir::path(&roots[0], ".gitignore"))
+            .unwrap()
+            .lines()
+            .any(|l| l == "/workspace.json")
     );
     assert_eq!(project.content_roots(), vec![roots[1].clone()]);
     let attached = ops::project::info(&project);

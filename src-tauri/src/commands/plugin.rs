@@ -781,7 +781,7 @@ impl ide_host::plugins::SecretStore for KeychainSecrets {
 #[cfg(target_os = "macos")]
 impl KeychainSecrets {
     fn service(plugin: &str) -> String {
-        format!("ai.l0ng.openidea.plugin.{plugin}")
+        format!("{}.plugin.{plugin}", ide_core::product::APP_ID)
     }
 }
 

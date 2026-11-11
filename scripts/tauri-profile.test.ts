@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildProfile, productProfile, withProfileConfig } from "./tauri-profile.ts";
+import { buildProfile, productProfile, profileTargetDirectory, withProfileConfig } from "./tauri-profile.ts";
 import { withDevConfig } from "./dev-session.ts";
 
 const roots: string[] = [];
@@ -13,6 +13,15 @@ afterEach(() => {
 });
 
 describe("Tauri product profile", () => {
+  it("separates v0 binaries without changing default Cargo output, independently of launch cwd", () => {
+    const root = join(tmpdir(), "worktree");
+    expect(profileTargetDirectory("default", root, undefined)).toBeUndefined();
+    expect(profileTargetDirectory("default", root, "custom-target")).toBe("custom-target");
+    expect(profileTargetDirectory("v0", root, undefined)).toBe(join(root, "target", "v0"));
+    expect(profileTargetDirectory("v0", root, "custom-target")).toBe(join(root, "custom-target", "v0"));
+    expect(profileTargetDirectory("v0", root, join(root, "output"))).toBe(join(root, "output", "v0"));
+  });
+
   it("uses the same explicit selection and errors as the frontend", () => {
     for (const value of [undefined, "", "default"]) expect(productProfile(value)).toBe("default");
     expect(productProfile("v0")).toBe("v0");
@@ -38,6 +47,7 @@ describe("Tauri product profile", () => {
     const args = withProfileConfig(input, "v0");
     expect(args.slice(-2)).toEqual(["--", "arg"]);
     expect(JSON.parse(args.at(-3)!)).toEqual({
+      identifier: "dev.qryctx.openidea.v0",
       bundle: { createUpdaterArtifacts: false },
       plugins: { updater: null },
     });
@@ -56,6 +66,7 @@ describe("Tauri product profile", () => {
 
   it("leaves the upstream base configuration unchanged", () => {
     const base = JSON.parse(readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf8"));
+    expect(base.identifier).toBe("ai.l0ng.openidea");
     expect(base.bundle.createUpdaterArtifacts).toBe(true);
     expect(base.plugins.updater.endpoints).toEqual([
       "https://github.com/l0ng-ai/openidea/releases/latest/download/latest.json",

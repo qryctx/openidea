@@ -93,3 +93,7 @@ export function settingsPageTarget(id: string): string {
 export function profileStorageKey(key: string): string {
   return isV0Profile() ? `openidea.profile.v0:${key}` : key;
 }
+
+export function projectConfigDir(): string {
+  return isV0Profile() ? ".openidea-v0" : ".openidea";
+}

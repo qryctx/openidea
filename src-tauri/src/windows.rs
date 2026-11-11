@@ -605,7 +605,7 @@ fn build_project_window(app: &AppHandle, mut config: WindowConfig) -> IdeResult<
     #[cfg(target_os = "linux")]
     let show_after_build = crate::linux_window_state::prepare(app, &mut config);
     let window = WebviewWindowBuilder::from_config(app, &config)
-        .and_then(|b| dev_font_preferences(b).build())
+        .and_then(|b| product_storage(app, b)?.build())
         .map_err(|e| IdeError::internal(format!("cannot create window: {e}")))?;
     #[cfg(target_os = "linux")]
     decorate_csd(&window);
@@ -1428,7 +1428,7 @@ pub fn open_auxiliary_window(app: &AppHandle, caller: &WebviewWindow, aux: AuxWi
     // display's Space, so macOS keeps it too.
     #[cfg(target_os = "linux")]
     let builder = builder.and_then(|b| b.parent(&parent));
-    let window = builder.and_then(|b| dev_font_preferences(b).build()).map_err(|e| {
+    let window = builder.and_then(|b| product_storage(app, b)?.build()).map_err(|e| {
         windows.forget(&label);
         IdeError::internal(format!("cannot create {} window: {e}", aux.kind.name()))
     })?;
@@ -1634,6 +1634,21 @@ fn fit_bounds(parent: (f64, f64, f64, f64), size: (f64, f64), work: (f64, f64, f
 /// (never above the parent's top edge, so the title bar stays reachable).
 fn centered(px: f64, py: f64, pw: f64, ph: f64, w: f64, h: f64) -> (f64, f64) {
     (px + (pw - w) / 2.0, py + ((ph - h) / 2.0).max(0.0))
+}
+
+fn product_storage<'a>(
+    app: &AppHandle,
+    builder: WebviewWindowBuilder<'a, tauri::Wry, AppHandle>,
+) -> tauri::Result<WebviewWindowBuilder<'a, tauri::Wry, AppHandle>> {
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    let builder = if ide_core::product::V0 {
+        builder.data_directory(app.path().app_local_data_dir()?.join("webview"))
+    } else {
+        builder
+    };
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    let _ = app;
+    Ok(dev_font_preferences(builder))
 }
 
 /// Reproduce WKWebView's user-font restriction before WKWebView creation. The

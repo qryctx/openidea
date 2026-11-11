@@ -18,6 +18,7 @@ pub mod jsonc;
 pub mod output_encoding;
 pub mod platform;
 pub mod process;
+pub mod product;
 pub mod project_dir;
 pub mod project_roots;
 pub mod proxy_settings;

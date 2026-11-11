@@ -1,7 +1,25 @@
 import { formatArgs } from "@/platform/commandLine";
 /** Run configuration helpers: grouping, overriding, validation and argument parsing. */
 import type { RunConfig } from "@/platform/ipc";
+import { isV0Profile, projectConfigDir } from "@/platform/productProfile";
 import { useRunConfigTypes } from "@/workbench/contributions";
+
+const BUILD_CONFIG_FILES =
+  /(?:^|\/)(?:package\.json|deno\.jsonc?|Cargo\.toml|build\.gradle(?:\.kts)?|pom\.xml|go\.(?:mod|work)|pyproject\.toml|setup\.cfg|pytest\.ini|manage\.py|Makefile|justfile|CMakeLists\.txt|CMakeCache\.txt|index-[^/]+\.json)$/;
+
+export function runConfigInputChanged(path: string): boolean {
+  if (!isV0Profile()) return BUILD_CONFIG_FILES.test(path) || /(?:^|\/)\.openidea\/run\.toml$/.test(path);
+  const parts = path.split("/");
+  if (parts.includes(".openidea") || parts.includes(".openidea-v0")) {
+    const file = parts.at(-1);
+    return (
+      !parts.includes(".openidea") &&
+      parts.at(-2) === projectConfigDir() &&
+      (file === "run.toml" || file === "run.local.toml")
+    );
+  }
+  return BUILD_CONFIG_FILES.test(path);
+}
 
 const KIND_LABELS: Record<string, string> = {
   npm: "npm",

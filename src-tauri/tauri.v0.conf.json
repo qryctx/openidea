@@ -1,4 +1,5 @@
 {
+  "identifier": "dev.qryctx.openidea.v0",
   "bundle": {
     "createUpdaterArtifacts": false
   },

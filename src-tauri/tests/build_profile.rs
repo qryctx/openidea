@@ -5,8 +5,10 @@ mod build_profile;
 fn cargo_profile_matches_the_current_environment_not_the_previous_build() {
     let expected = build_profile::profile(std::env::var("VITE_OPENIDEA_PROFILE").ok().as_deref()) == "v0";
     assert_eq!(cfg!(openidea_v0), expected);
+    assert_eq!(ide_core::product::V0, expected);
     let context: tauri::Context<tauri::Wry> = tauri::generate_context!();
     if expected {
+        assert_eq!(context.config().identifier, ide_core::product::APP_ID);
         assert!(!context.config().plugins.0.contains_key("updater"));
         assert!(matches!(context.config().bundle.create_updater_artifacts, tauri::utils::config::Updater::Bool(false)));
     } else {
@@ -27,7 +29,7 @@ fn v0_removes_upstream_and_custom_updaters_without_changing_other_config() {
         assert_eq!(overlay["plugins"]["updater"], serde_json::Value::Null);
         assert_eq!(overlay["bundle"]["createUpdaterArtifacts"], false);
         if existing.is_some() {
-            assert_eq!(overlay["identifier"], "custom");
+            assert_eq!(overlay["identifier"], "dev.qryctx.openidea.v0");
             assert_eq!(overlay["plugins"]["other"]["enabled"], true);
             assert_eq!(overlay["bundle"]["active"], true);
         }
