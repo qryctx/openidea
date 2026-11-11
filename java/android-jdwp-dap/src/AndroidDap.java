@@ -7,11 +7,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 
-/** Attach-only DAP/JDI spike. Never invokes methods, redefines classes or exits the target. */
+/** JDI DAP spike: attach preserves targets; launch owns only an Android sample package. */
 public final class AndroidDap {
     private final BufferedInputStream input = new BufferedInputStream(System.in);
     private volatile VirtualMachine vm;
+    private AndroidLaunch android;
     private boolean configured;
+    private boolean terminatedSent;
     private volatile boolean closed;
     private int seq = 1, nextId = 1;
     private final Map<Integer, ThreadReference> threads = new LinkedHashMap<>();
@@ -41,8 +43,19 @@ public final class AndroidDap {
 
     public static void main(String[] args) throws Exception {
         var adapter = new AndroidDap();
+        Throwable failure = null;
         try { adapter.run(); }
-        finally { synchronized (adapter.state) { adapter.detach(); } }
+        catch (Exception | Error error) { failure = error; throw error; }
+        finally {
+            synchronized (adapter.state) {
+                try { adapter.finish(adapter.android != null); }
+                catch (Exception cleanup) {
+                    if (failure == null) throw cleanup;
+                    failure.addSuppressed(cleanup);
+                    System.err.println("Final cleanup failed: " + cleanup);
+                }
+            }
+        }
     }
 
     private void run() throws IOException {
@@ -57,8 +70,9 @@ public final class AndroidDap {
                     Object body = dispatch(command, args);
                     send(Map.of("type", "response", "request_seq", request.get("seq"),
                             "command", command, "success", true, "body", body));
-                    if (command.equals("attach")) event("initialized", Map.of());
-                    if (command.equals("disconnect")) { event("terminated", Map.of()); closed = true; }
+                    if (command.equals("attach") || command.equals("launch")) event("initialized", Map.of());
+                    if (command.equals("terminate") || command.equals("disconnect")) terminated();
+                    if (command.equals("disconnect")) closed = true;
                 } catch (Exception e) {
                     System.err.println(command + ": " + e);
                     send(Map.of("type", "response", "request_seq", request.get("seq"),
@@ -72,63 +86,42 @@ public final class AndroidDap {
         if (command.equals("initialize")) {
             if (Boolean.FALSE.equals(args.get("linesStartAt1")) || Boolean.FALSE.equals(args.get("columnsStartAt1")))
                 throw new IllegalArgumentException("This prototype requires 1-based DAP coordinates");
-            return Map.of("supportsConfigurationDoneRequest", true, "supportsTerminateDebuggee", false,
-                    "supportsVariablePaging", true);
+            return Map.of("supportsConfigurationDoneRequest", true, "supportsTerminateDebuggee", true,
+                    "supportsTerminateRequest", true, "supportsVariablePaging", true);
         }
         if (command.equals("attach")) {
-            if (vm != null) throw new IllegalStateException("Already attached");
+            if (vm != null || android != null) throw new IllegalStateException("Already attached");
             String host = stringArgument(args.getOrDefault("hostName", "127.0.0.1"), "hostName");
             if (!host.equals("127.0.0.1") && !host.equals("localhost"))
                 throw new IllegalArgumentException("Use a loopback adb forward");
             int port = Json.integer(args, "port");
             if (port < 1 || port > 65535) throw new IllegalArgumentException("Invalid port");
-            var sourceRoots = new ArrayList<Path>();
-            for (Object root : Json.array(args.getOrDefault("sourceRoots", List.of()))) {
-                Path path = Path.of(stringArgument(root, "sourceRoot")).toRealPath();
-                if (!Files.isDirectory(path)) throw new IllegalArgumentException("sourceRoot must be a directory: " + path);
-                sourceRoots.add(path);
-            }
-            var filters = new ArrayList<String>();
-            for (Object value : Json.array(args.getOrDefault("classFilters", List.of("*")))) {
-                String filter = stringArgument(value, "classFilter");
-                int star = filter.indexOf('*');
-                if (star >= 0 && (star != filter.lastIndexOf('*') || (star != 0 && star != filter.length() - 1)))
-                    throw new IllegalArgumentException("classFilter permits only one leading or trailing wildcard: " + filter);
-                filters.add(filter);
-            }
-            if (filters.isEmpty()) throw new IllegalArgumentException("classFilters must not be empty");
-            AttachingConnector connector = Bootstrap.virtualMachineManager().attachingConnectors().stream()
-                    .filter(c -> c.name().equals("com.sun.jdi.SocketAttach")).findFirst().orElseThrow();
-            var options = connector.defaultArguments();
-            options.get("hostname").setValue(host);
-            options.get("port").setValue(Integer.toString(port));
-            options.get("timeout").setValue("10000");
-            VirtualMachine target = connector.attach(options);
+            return connect(host, port, sourceRoots(args), classFilters(args));
+        }
+        if (command.equals("launch")) {
+            if (vm != null || android != null) throw new IllegalStateException("Already attached");
+            List<Path> sourceRoots = sourceRoots(args);
+            List<String> filters = classFilters(args);
+            AndroidLaunch launched = AndroidLaunch.create(args);
             try {
-                // VMStart may be resumed by the event pump; this separate hold protects setup.
-                target.suspend();
-                for (String filter : filters) {
-                    var prepare = target.eventRequestManager().createClassPrepareRequest();
-                    prepare.addClassFilter(filter);
-                    prepare.setSuspendPolicy(EventRequest.SUSPEND_ALL);
-                    prepare.enable();
-                }
-                var body = Map.of("vmName", target.name(), "vmVersion", target.version());
-                clearSessionState();
-                roots.addAll(sourceRoots);
-                vm = target;
-                new Thread(() -> pump(target), "jdi-events").start();
+                int port = launched.start();
+                Object body = connect("127.0.0.1", port, sourceRoots, filters);
+                android = launched;
                 return body;
             } catch (Exception | Error failure) {
-                if (vm == target) vm = null;
-                clearSessionState();
-                try { target.dispose(); }
+                try { launched.cleanup(true); }
                 catch (Exception cleanup) {
                     failure.addSuppressed(cleanup);
-                    System.err.println("Attach rollback failed: " + cleanup);
+                    System.err.println("Android launch rollback failed: " + cleanup);
+                    android = launched;
                 }
                 throw failure;
             }
+        }
+        if (command.equals("terminate")) {
+            if (android == null) throw new UnsupportedOperationException("terminate is only available for owned Android launches");
+            finish(true);
+            return Map.of();
         }
         if (vm == null && !command.equals("disconnect")) throw new IllegalStateException("Not attached");
         return switch (command) {
@@ -186,13 +179,72 @@ public final class AndroidDap {
                 yield Map.of();
             }
             case "disconnect" -> {
-                if (Boolean.TRUE.equals(args.get("terminateDebuggee")))
-                    throw new UnsupportedOperationException("Target termination is forbidden");
-                detach();
+                boolean stop = Boolean.TRUE.equals(args.get("terminateDebuggee"));
+                if (stop && android == null && vm != null)
+                    throw new UnsupportedOperationException("Target termination is forbidden for attach");
+                finish(stop);
                 yield Map.of();
             }
             default -> throw new UnsupportedOperationException("Unsupported DAP command: " + command);
         };
+    }
+
+    private List<Path> sourceRoots(Map<String, Object> args) throws IOException {
+        var sourceRoots = new ArrayList<Path>();
+        for (Object root : Json.array(args.getOrDefault("sourceRoots", List.of()))) {
+            Path path = Path.of(stringArgument(root, "sourceRoot")).toRealPath();
+            if (!Files.isDirectory(path)) throw new IllegalArgumentException("sourceRoot must be a directory: " + path);
+            sourceRoots.add(path);
+        }
+        return sourceRoots;
+    }
+
+    private List<String> classFilters(Map<String, Object> args) {
+        var filters = new ArrayList<String>();
+        for (Object value : Json.array(args.getOrDefault("classFilters", List.of("*")))) {
+            String filter = stringArgument(value, "classFilter");
+            int star = filter.indexOf('*');
+            if (star >= 0 && (star != filter.lastIndexOf('*') || (star != 0 && star != filter.length() - 1)))
+                throw new IllegalArgumentException("classFilter permits only one leading or trailing wildcard: " + filter);
+            filters.add(filter);
+        }
+        if (filters.isEmpty()) throw new IllegalArgumentException("classFilters must not be empty");
+        return filters;
+    }
+
+    private Object connect(String host, int port, List<Path> sourceRoots, List<String> filters) throws Exception {
+        AttachingConnector connector = Bootstrap.virtualMachineManager().attachingConnectors().stream()
+                .filter(c -> c.name().equals("com.sun.jdi.SocketAttach")).findFirst().orElseThrow();
+        var options = connector.defaultArguments();
+        options.get("hostname").setValue(host);
+        options.get("port").setValue(Integer.toString(port));
+        options.get("timeout").setValue("10000");
+        VirtualMachine target = connector.attach(options);
+        try {
+            // VMStart may be resumed by the event pump; this separate hold protects setup.
+            target.suspend();
+            for (String filter : filters) {
+                var prepare = target.eventRequestManager().createClassPrepareRequest();
+                prepare.addClassFilter(filter);
+                prepare.setSuspendPolicy(EventRequest.SUSPEND_ALL);
+                prepare.enable();
+            }
+            var body = Map.of("vmName", target.name(), "vmVersion", target.version());
+            clearSessionState();
+            roots.addAll(sourceRoots);
+            vm = target;
+            new Thread(() -> pump(target), "jdi-events").start();
+            return body;
+        } catch (Exception | Error failure) {
+            if (vm == target) vm = null;
+            clearSessionState();
+            try { target.dispose(); }
+            catch (Exception cleanup) {
+                failure.addSuppressed(cleanup);
+                System.err.println("Attach rollback failed: " + cleanup);
+            }
+            throw failure;
+        }
     }
 
     private Object setBreakpoints(Map<String, Object> args) throws Exception {
@@ -238,7 +290,7 @@ public final class AndroidDap {
         return Map.of("breakpoints", list.stream().map(LineBreakpoint::body).toList());
     }
 
-    private static String stringArgument(Object value, String name) {
+    static String stringArgument(Object value, String name) {
         if (!(value instanceof String text) || text.isBlank())
             throw new IllegalArgumentException(name + " must be a nonblank string");
         return text;
@@ -246,6 +298,7 @@ public final class AndroidDap {
 
     private void clearSessionState() {
         configured = false;
+        terminatedSent = false;
         roots.clear();
         threads.clear();
         breakpoints.clear();
@@ -328,8 +381,8 @@ public final class AndroidDap {
                             stop = true;
                         }
                         if (event instanceof VMDeathEvent || event instanceof VMDisconnectEvent) {
-                            event("terminated", Map.of());
-                            vm = null;
+                            finish(true);
+                            terminated();
                             return;
                         }
                     }
@@ -338,14 +391,19 @@ public final class AndroidDap {
             }
         } catch (VMDisconnectedException e) {
             synchronized (state) {
-                if (!closed && vm == target) { event("terminated", Map.of()); vm = null; }
+                if (!closed && vm == target) {
+                    try { finish(true); }
+                    catch (Exception cleanup) { warn("Disconnected target cleanup failed: " + cleanup); }
+                    terminated();
+                }
             }
         } catch (Exception e) {
             synchronized (state) {
                 if (vm == target) {
                     warn("JDI event pump failed: " + e);
-                    detach();
-                    event("terminated", Map.of());
+                    try { finish(true); }
+                    catch (Exception cleanup) { warn("Failed target cleanup: " + cleanup); }
+                    terminated();
                 }
             }
         }
@@ -443,12 +501,35 @@ public final class AndroidDap {
         return id;
     }
     private void detach() {
-        if (vm != null) {
-            try { vm.dispose(); }
-            catch (VMDisconnectedException e) { System.err.println("Target already disconnected"); }
+        try {
+            if (vm != null) {
+                try { vm.dispose(); }
+                catch (VMDisconnectedException e) { System.err.println("Target already disconnected"); }
+            }
+        } finally {
             vm = null;
+            invalidate();
         }
-        invalidate();
+    }
+    private void finish(boolean stop) throws Exception {
+        Exception failure = null;
+        try { detach(); }
+        catch (Exception error) { failure = error; }
+        if (android != null) {
+            try { android.cleanup(stop); }
+            catch (Exception error) {
+                if (failure == null) failure = error;
+                else failure.addSuppressed(error);
+            }
+            if (android.isClean()) android = null;
+        }
+        if (failure != null) throw failure;
+    }
+    private void terminated() {
+        if (!terminatedSent) {
+            event("terminated", Map.of());
+            terminatedSent = true;
+        }
     }
     private void warn(String message) {
         System.err.println(message);

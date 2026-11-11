@@ -22,7 +22,12 @@ def main():
     parser.add_argument("--evidence", type=Path, required=True)
     parser.add_argument("--case", choices=["f1-kotlin", "f2-java", "f3-mixed"])
     parser.add_argument("--lambda-probe", action="store_true")
+    parser.add_argument("--launch", action="store_true")
+    parser.add_argument("--start-running", action="store_true")
+    parser.add_argument("--stop-mode", choices=["detach", "terminate", "disconnect"], default="detach")
     args = parser.parse_args()
+    if (args.start_running or args.stop_mode != "detach") and not args.launch:
+        parser.error("--start-running and Stop tests require --launch")
     args.evidence.mkdir(parents=True, exist_ok=True)
     sdk = os.environ.get("ANDROID_HOME")
     if not sdk:
@@ -41,6 +46,9 @@ def main():
         start = time.perf_counter()
         result = subprocess.run([str(adb), "-s", serial, *arguments], capture_output=True,
                                 encoding="utf-8", errors="strict", timeout=30)
+        if arguments == ("forward", "--list"):
+            result.stdout = "\n".join(line for line in result.stdout.splitlines()
+                                     if line.split() and line.split()[0] == serial)
         commands.append(dict(command=["adb", "-s", "<test-phone>", *arguments],
                              exitCode=result.returncode,
                              ms=round((time.perf_counter() - start) * 1000, 1),
@@ -58,6 +66,9 @@ def main():
                                                breakpoints=[dict(line=line)]))
         assert len(body["breakpoints"]) == 1, body
         return line, body["breakpoints"][0]
+
+    def forwards():
+        return {tuple(line.split()[1:]) for line in run("forward", "--list").splitlines()}
 
     def step(dap, command, stop, timings):
         start = time.perf_counter()
@@ -93,6 +104,9 @@ def main():
             roots = [str(path.resolve()) for path in project.glob("*/src/main/*")
                      if path.name in ("java", "kotlin") and path.is_dir()]
             installed, forward, dap = False, None, None
+            initial_forwards = forwards()
+            prior_pid = None
+            owned_forward = None
             try:
                 # Ownership is established before install; a timeout still runs cleanup.
                 installed = True
@@ -104,8 +118,24 @@ def main():
                 if component.startswith(package + "/."):
                     expanded = package + "/" + package + component.split("/", 1)[1]
                 assert expanded == expected, (expanded, expected)
-                launch = run("shell", "am", "start", "-D", "-n", component)
-                assert "Error" not in launch, launch
+                if args.start_running:
+                    assert "Status: ok" in run("shell", "am", "start", "-W", "-n", component)
+                    prior_pid = run("shell", "pidof", package)
+                    assert re.fullmatch(r"\d+", prior_pid), prior_pid
+                dap = Dap()
+                caps = dap.request("initialize", dict(linesStartAt1=True, columnsStartAt1=True))
+                timings = {}
+                if args.launch:
+                    assert caps["supportsTerminateRequest"] and caps["supportsTerminateDebuggee"], caps
+                    start = time.perf_counter()
+                    vm = dap.request("launch", dict(adbPath=str(adb.resolve()), serial=serial,
+                                                   packageName=package, sourceRoots=roots,
+                                                   classFilters=["dev.openandroid.samples.*"]))
+                    dap.event("initialized")
+                    timings["launchMs"] = round((time.perf_counter() - start) * 1000, 1)
+                else:
+                    launch = run("shell", "am", "start", "-D", "-n", component)
+                    assert "Error" not in launch, launch
                 deadline = time.perf_counter() + 10
                 while True:
                     pid = run("shell", "pidof", package, absent_package_ok=True)
@@ -115,17 +145,21 @@ def main():
                         raise RuntimeError("Sample process did not become ready within 10 seconds")
                     time.sleep(0.1)
                 assert re.fullmatch(r"\d+", pid), "Expected a single app process"
-                allocated = run("forward", "tcp:0", "jdwp:" + pid)
-                assert re.fullmatch(r"\d+", allocated), "adb must report its allocated port"
-                forward = "tcp:" + allocated
-                dap = Dap()
-                dap.request("initialize", dict(linesStartAt1=True, columnsStartAt1=True))
-                timings = {}
-                start = time.perf_counter()
-                vm = dap.request("attach", dict(hostName="127.0.0.1", port=int(allocated),
-                                               sourceRoots=roots, classFilters=["dev.openandroid.samples.*"]))
-                dap.event("initialized")
-                timings["attachMs"] = round((time.perf_counter() - start) * 1000, 1)
+                if prior_pid is not None:
+                    assert pid != prior_pid, "launch -S must replace the previously running app process"
+                if args.launch:
+                    owned = forwards() - initial_forwards
+                    assert len(owned) == 1 and next(iter(owned))[1] == "jdwp:" + pid, owned
+                    owned_forward = next(iter(owned))
+                else:
+                    allocated = run("forward", "tcp:0", "jdwp:" + pid)
+                    assert re.fullmatch(r"\d+", allocated), "adb must report its allocated port"
+                    forward = "tcp:" + allocated
+                    start = time.perf_counter()
+                    vm = dap.request("attach", dict(hostName="127.0.0.1", port=int(allocated),
+                                                   sourceRoots=roots, classFilters=["dev.openandroid.samples.*"]))
+                    dap.event("initialized")
+                    timings["attachMs"] = round((time.perf_counter() - start) * 1000, 1)
                 line, bp = set_line(dap, source, "BREAKPOINT-TARGET-1")
                 start = time.perf_counter()
                 dap.request("configurationDone")
@@ -207,14 +241,27 @@ def main():
                 dap.event("stopped", lambda body: body["reason"] == "pause")
                 before = run("logcat", "--pid=" + pid, "-d", "-s", "OAS:I", "*:S")
                 before_cycles = re.findall(name + r" iteration=(\d+)", before)
-                dap.request("disconnect", dict(terminateDebuggee=False))
-                dap.event("terminated")
+                if args.stop_mode == "terminate":
+                    dap.request("terminate")
+                    dap.event("terminated")
+                    dap.request("disconnect", dict(terminateDebuggee=False))
+                else:
+                    dap.request("disconnect", dict(terminateDebuggee=args.stop_mode == "disconnect"))
+                    dap.event("terminated")
                 dap.close()
-                time.sleep(2)
-                assert run("shell", "pidof", package) == pid, "Disconnect changed/killed app process"
-                after = run("logcat", "--pid=" + pid, "-d", "-s", "OAS:I", "*:S")
-                after_cycles = re.findall(name + r" iteration=(\d+)", after)
-                assert len(after_cycles) > len(before_cycles), (before_cycles, after_cycles)
+                if args.stop_mode == "detach":
+                    time.sleep(2)
+                    assert run("shell", "pidof", package) == pid, "Disconnect changed/killed app process"
+                    after = run("logcat", "--pid=" + pid, "-d", "-s", "OAS:I", "*:S")
+                    after_cycles = re.findall(name + r" iteration=(\d+)", after)
+                    assert len(after_cycles) > len(before_cycles), (before_cycles, after_cycles)
+                else:
+                    assert not run("shell", "pidof", package, absent_package_ok=True), "Stop left the app running"
+                    after_cycles = []
+                if args.launch:
+                    remaining = forwards()
+                    assert owned_forward not in remaining and initial_forwards <= remaining, remaining
+                assert not any(event["event"] in ("process", "processid") for event in dap.events), "Phone pid must not be announced"
                 row = dict(fixture=fixture, result="PASS", vm=vm, timings=timings,
                            firstFrame=frame, stepInFrame=inner_frame, nextFrame=next_frame,
                            stepOutFrame=out_frame, finalFrame=final_frame,
@@ -224,10 +271,12 @@ def main():
                                         if key in ("sum", "count", "result", "transformed", "even")},
                            fields=fields, array=array, collectionFields=collections, listMapExpandable=True,
                            logCyclesBeforeDetach=before_cycles, logCyclesAfterDetach=after_cycles,
-                           appSurvivesDetach=True, adapterWarnings=list(dap.stderr), lambdaProof=lambda_proof)
+                           appSurvivesDetach=args.stop_mode == "detach", stopMode=args.stop_mode,
+                           launch=args.launch, forwardRemovedByAdapter=args.launch, existingProcessReplaced=prior_pid is not None,
+                           adapterWarnings=list(dap.stderr), lambdaProof=lambda_proof)
                 results.append(row)
                 print(json.dumps(dict(fixture=fixture, result="PASS", timings=timings,
-                                      appSurvivesDetach=True)), flush=True)
+                                      stopMode=args.stop_mode, forwardRemovedByAdapter=args.launch)), flush=True)
             finally:
                 errors = []
                 if dap is not None:
@@ -238,6 +287,12 @@ def main():
                 if forward is not None:
                     try:
                         run("forward", "--remove", forward)
+                    except Exception as error:
+                        errors.append(str(error))
+                if owned_forward is not None:
+                    try:
+                        if owned_forward in forwards():
+                            run("forward", "--remove", owned_forward[0])
                     except Exception as error:
                         errors.append(str(error))
                 if installed:

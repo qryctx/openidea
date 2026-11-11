@@ -11,4 +11,5 @@ subprocess.run(["javac", "--add-modules", "jdk.jdi", "-encoding", "UTF-8",
 subprocess.run(["jar", "--create", "--file", str(output / "android-jdwp-dap.jar"),
                 "--main-class", "AndroidDap", "-C", str(output), "AndroidDap.class",
                 "-C", str(output), "AndroidDap$LineBreakpoint.class",
+                "-C", str(output), "AndroidLaunch.class",
                 "-C", str(output), "Json.class"], check=True)

@@ -18,6 +18,10 @@ debuggable 未混淆 APK + 常规 Java/Kotlin 行调试有一条不依赖 Androi
 JDT LS、AGP model bridge 的简单路径。**不是完整 IDE 发布 GO**：
 本次仅验证协议原型，不声称 OpenIDEA UI 已接入、完成 Rust 打包或支持所有 ART。
 
+最新补验还通过适配器内 **DAP launch**：安装仍由外部负责，适配器独占本次
+调试启动、JDWP forward、分离和两条 Stop 清理路径；F1/F2/F3 真机回归通过。
+后文原 attach 测量保留为历史证据，不混作新的 launch 测量。
+
 ## 现有 OpenIDEA 可以复用什么
 
 | 位置                                            | 已核实行为与 Android 边界                                                                                                                                                                                                                           |
@@ -28,17 +32,17 @@ JDT LS、AGP model bridge 的简单路径。**不是完整 IDE 发布 GO**：
 | `crates\ide-dap\src\attach.rs`                  | `classify` 通过本机进程命令行发现 JDWP；`list_processes` 非 Unix 路径不可用。这不是 adb 进程发现，不能用此弹窗代替真机 pid/JDWP 列表。                                                                                                              |
 | `languages\java.toml`、`languages\kotlin.toml`  | 分别指定 java-debug、kotlin-debug-adapter，不宜全局替换为 Android 适配器（仍保留普通 JVM 行为）。                                                                                                                                                   |
 | `src\features\debugger\java.ts`                 | `javaAttachConfig` 先调用 `javaDebugServer` 启动 JDT LS 中 java-debug 的 DAP 服务；源码与项目名称解析来自 JVM 项目准备通路。v0 不应复用这个前置依赖。                                                                                               |
-| `src\features\debugger\actions.ts`、`attach.ts` | 已有 Remote JVM Debug（host/port）与通用调试 actions；Android 入口应独立创建 `adapter=android-jdwp-dap, request=attach`。                                                                                                                           |
+| `src\features\debugger\actions.ts`、`attach.ts` | 已有 Remote JVM Debug（host/port）与通用调试 actions；Android 入口应独立创建 `adapter=android-jdwp-dap, request=launch`，原 host/port attach 保留。                                                                                                 |
 | `src\features\debugger\state.ts`、`ui\`         | 调试状态/线程/帧/变量 UI 可复用；不需要新造 Android 调试器面板。最终集成时还需审阅按 adapter capability 禁用未实现功能。                                                                                                                            |
 | `docs\zh\guide\debugging.mdx`                   | 文档已说明 DAP、行断点、变量和步进；尚无 Android/adb 的运行语义。                                                                                                                                                                                   |
 
 ## 三条候选路径
 
-| 路径                                          | 依据                                                                                                                                                                                                                                                                                                                                                                        | 决策                                                                                                                       |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| A：fwcd Kotlin Debug Adapter 直接 attach JDWP | [配置](https://github.com/fwcd/kotlin-debug-adapter/blob/main/CONFIGURATION.md) 有 `projectRoot,hostName,port,timeout`；[架构](https://github.com/fwcd/kotlin-debug-adapter/blob/main/README.md) 本来就是 DAP→JDI。OpenIDEA 已有安装、源码镜像和启动 relay。上游目标 Kotlin/JVM，ART 是否兼容不能从 README 推导。                                                           | 可作为后续复用对照；本次不下载/运行其完整依赖。不是已证明失败。                                                            |
-| B：Microsoft java-debug                       | [AttachRequestHandler](https://github.com/microsoft/java-debug/blob/main/com.microsoft.java.debug.core/src/main/java/com/microsoft/java/debug/core/adapter/handler/AttachRequestHandler.java) 直接 attach socket，但初始化 source/evaluation/HCR/completion providers；OpenIDEA 从 JDT LS 启动此 adapter。即使 sourcePaths 有回退，Android 无 AGP import 的行断点仍需实测。 | 与“不做 Java/Kotlin 语义 LSP、AGP model bridge”冲突；不选为 v0 前置。不是宣称它技术上无法调 ART。                          |
-| C：小型独立 JDI adapter                       | JDK 21 本机 `java --list-modules` 有 `jdk.jdi`；SocketAttach、ClassPrepare、locationsOfLine、局部变量和步进都是 JDI 标准 API。                                                                                                                                                                                                                                              | **选为可证伪 spike**：不解释源码表达式、不启动 app、不杀 target，只做行调试。生产化是否继续自研需结合 ART 结果与维护成本。 |
+| 路径                                          | 依据                                                                                                                                                                                                                                                                                                                                                                        | 决策                                                                                                                                          |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| A：fwcd Kotlin Debug Adapter 直接 attach JDWP | [配置](https://github.com/fwcd/kotlin-debug-adapter/blob/main/CONFIGURATION.md) 有 `projectRoot,hostName,port,timeout`；[架构](https://github.com/fwcd/kotlin-debug-adapter/blob/main/README.md) 本来就是 DAP→JDI。OpenIDEA 已有安装、源码镜像和启动 relay。上游目标 Kotlin/JVM，ART 是否兼容不能从 README 推导。                                                           | 可作为后续复用对照；本次不下载/运行其完整依赖。不是已证明失败。                                                                               |
+| B：Microsoft java-debug                       | [AttachRequestHandler](https://github.com/microsoft/java-debug/blob/main/com.microsoft.java.debug.core/src/main/java/com/microsoft/java/debug/core/adapter/handler/AttachRequestHandler.java) 直接 attach socket，但初始化 source/evaluation/HCR/completion providers；OpenIDEA 从 JDT LS 启动此 adapter。即使 sourcePaths 有回退，Android 无 AGP import 的行断点仍需实测。 | 与“不做 Java/Kotlin 语义 LSP、AGP model bridge”冲突；不选为 v0 前置。不是宣称它技术上无法调 ART。                                             |
+| C：小型独立 JDI adapter                       | JDK 21 本机 `java --list-modules` 有 `jdk.jdi`；SocketAttach、ClassPrepare、locationsOfLine、局部变量和步进都是 JDI 标准 API。                                                                                                                                                                                                                                              | **选为可证伪 spike**：只做行调试、不解释源码表达式。最初 attach-only；后续增加自有样例的 launch/Stop 生命周期，不改变 attach 保留目标的语义。 |
 
 本次 Java adapter 第三方库 **0**；JSON framing/codec 是本仓库新增原型代码。
 运行依赖 Temurin JDK（OpenJDK GPLv2 + Classpath Exception）；测试 Python（PSF License）。
@@ -64,8 +68,8 @@ java --add-modules jdk.jdi -jar java\android-jdwp-dap\build\android-jdwp-dap.jar
 `tests\dap_client.py` 的 Content-Length framed client。attach 参数：
 `hostName=127.0.0.1`、`port=<JDWP-forward>`、`sourceRoots=[绝对源码根目录]`、
 `classFilters=[应用/库包名前缀*]`。initialize 必须 1-based（与现有 ide-dap 一致）。
-支持 initialize/attach/setBreakpoints/configurationDone/threads/stackTrace/scopes/
-variables/continue/next/stepIn/stepOut/pause/disconnect，以及空的
+支持 initialize/attach/launch/setBreakpoints/configurationDone/threads/stackTrace/scopes/
+variables/continue/next/stepIn/stepOut/pause/terminate/disconnect，以及空的
 setExceptionBreakpoints；stopped/continued/breakpoint/initialized/terminated/output
 事件。未实现的命令或不支持的断点条件返回 DAP success=false。
 
@@ -133,6 +137,125 @@ ClassPrepare EventRequest.Set 注入 NOT_IMPLEMENTED 回复。此时已经建立
 剩余边界：断线导致 dispose 本身失败只能明确报告；未曾接收且已经失效的
 symlink 别名无法推断原 canonical 文件；非空断点的逐类 JDI 安装失败仍不是
 完整回滚事务。设备拔出、取消、类卸载等生产化限制仍见后文。
+
+## 适配器内 launch 生命周期（真机补验完成）
+
+实现位于 `java\android-jdwp-dap\src\AndroidLaunch.java`；
+`AndroidDap.java` 共用原 JDI connect/断点/步进逻辑，新增 launch/terminate 和
+会话资源清理。没有新增第三方依赖，没有改 Rust/Tauri/TOML/前端或安装 MSVC。
+
+### launch 参数合同
+
+IDE 构建并安装 debuggable APK 后，启动 stdio adapter，发送 initialize，再发：
+
+```json
+{
+  "command": "launch",
+  "arguments": {
+    "adbPath": "C:\\Android\\Sdk\\platform-tools\\adb.exe",
+    "serial": "<运行时选择的测试手机>",
+    "packageName": "dev.openandroid.samples.java",
+    "sourceRoots": ["C:\\project\\app\\src\\main\\java"],
+    "classFilters": ["dev.openandroid.samples.*"]
+  }
+}
+```
+
+示例路径和 serial 是占位符，必须替换为实际本机路径/用户选择的设备，不写入
+项目文件。`adbPath` 必须绝对且指向现有可执行文件；`serial` 必填、不得为
+emulator serial；`packageName` 目前硬限制 `dev.openandroid.samples.*`，生产接入
+前必须单独决定如何授权用户明确选择的目标包，不能宣称任意 App 已可用。
+`component` 可选，格式为 `<packageName>/<activity>`，支持 `.MainActivity`
+或完整类名，必须归属同一个 package；省略时 query-activities 和 resolve-activity
+必须共同解析出唯一 MAIN/LAUNCHER，多个候选不猜测。sourceRoots 缺省空数组、
+必须为存在的源码目录；classFilters 缺省 `["*"]`，不接受空数组，建议显式应用/
+库包名前缀以控制 ART 类事件数量。所有输入在任何设备副作用前校验到局部数据。
+
+适配器逐条使用 `adb -s <test-phone>`：get-state 检查在线/授权，getprop
+只读拒绝模拟器，pm path 检查已安装；执行 `am start -S -D -n <component>`。
+**-S 会先结束已有的目标 App，再以调试模式启动新进程**，因此 launch 不等于
+“保留原运行进程的附加”；本轮 F2 从普通运行状态开始，确认新旧 PID 不同。
+随后 pidof 最长轮询 10 秒、间隔 100 ms（单次命令受剩余 deadline 限制），
+要求唯一进程，再 forward tcp:0 jdwp:<pid> 并连接 loopback JDWP。
+普通 adb 命令有 30 秒超时，JDI attach 为 10 秒；launch 总耗时不是 10 秒上限。
+不使用 adb jdwp 的 EOF 门槛，不安装 APK，不执行 SDK 下载。
+
+launch 成功后才发 initialized；客户端设置断点，再 configurationDone。
+保留原独立 suspend hold，确保 Waiting for debugger 启动不会先于断点配置恢复。
+**从不发送 process/processid 事件，也不发送手机 systemProcessId/processId**。
+`crates\ide-dap\src\session.rs` 会记录这类 PID，`lib.rs` 的 launch Stop 会对其
+发本机 signal/kill；把手机 PID 填进去会误伤同号 Windows 进程。
+
+### 分离、Stop 与失败语义
+
+| 请求/情况                                      | 行为与本轮证据                                                                                                                                                                                          |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `disconnect(terminateDebuggee=false)`          | 先 JDI dispose，再移除本条 forward；App 继续运行。F1/F2/F3 均先 pause，分离后同 PID 输出新的 iteration，排除“只是进程还活着但被冻住”。                                                                  |
+| `terminate` → terminated → `disconnect(false)` | initialize 宣告 supportsTerminateRequest；terminate 先分离、force-stop 自有样例并检查 pidof 为空、移除自有 forward，再发 terminated。后续 disconnect 是幂等清理，不再发第二个 terminated。F2 真机通过。 |
+| `disconnect(true)`                             | 同样先分离再 force-stop，确认 PID 消失并移除自有 forward，再发 terminated。F2 真机通过，覆盖 IDE 不走 terminate 的 Stop 分支。                                                                          |
+| 原 host/port attach                            | 不管理 Android 启动或 forward；disconnect(false)/EOF 保留目标，terminate 或附加状态的 disconnect(true) 明确拒绝。完整 host 协议回归仍通过。                                                             |
+| launch 任一步骤失败                            | 返回原始错误；连接建立后的失败 dispose 本次连接；已尝试 -D 启动的自有包 force-stop，移除已确认的本条 forward。清理失败附加 suppressed error/写 stderr，保留资源所有权便于重试，不伪装成功。             |
+| 无显式分离的 stdin EOF、目标退出/事件泵失败    | 实现主动清理自有 launch；EOF 不等于要求保留 App，想保留必须明确 disconnect(false)。本轮没有独立强杀/设备拔出测试，不以 finally 保证不可捕获的进程结束。                                                 |
+
+forward 所有权来自本条 tcp:0 命令回执，不用全局 remove-all 或猜测删除其他
+会话转发。即使回执含合法端口后又产生错误/损坏输出，也记住端口以便回滚；
+本轮通过“真实分配 forward 后追加损坏输出”验证。若 adb 崩溃/设备拔出，
+导致回执完全丢失或 force-stop/forward remove 无法执行，无法保证即时清理；
+不能为了伪造清理成功而删除未知所有权的转发。这仍是生产化系统故障边界。
+
+### 可重复回归与结果
+
+先按前文只读 SDK/私有 Gradle home 构建样例；本轮复用已有 APK，未重建或下载。
+`--evidence` 指向仓库外目录；以下证据目录名位于本会话 files 中，JSON 已脱敏。
+测试仍负责安装、独立核实 PID/forward/Logcat 与最后卸载；launch 模式下不再
+代替适配器执行正常启动/转发/分离。失败测试的临时 `.cmd` 只覆盖指定 adb 回复，
+其余命令仍透传真实 `adb -s`，不修改 SDK、adb server 或 Android Studio。
+
+| 实际命令（证据路径以目录名缩写）                                                                                                     | 退出码/结果                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `python java\android-jdwp-dap\tests\host.py`                                                                                         | 0；完整协议、非法 attach/连接后回滚/新心跳/重试、失效源文件断点清理三组 PASS；内部执行 javac `--add-modules jdk.jdi -encoding UTF-8 -Xlint:all -Werror` 和 jar 打包，包括 AndroidLaunch.java。                                         |
+| `python java\android-jdwp-dap\tests\phone.py --launch --lambda-probe --evidence <launch-phone-evidence>`                             | 0；F1 Kotlin、F2 Java、F3 mixed 全部断点/stepIn/next/stepOut/变量及 detach 心跳 PASS，F1 lambda 捕获变量 PASS。                                                                                                                        |
+| `python java\android-jdwp-dap\tests\phone.py --launch --case f2-java --start-running --evidence <launch-running-evidence>`           | 0；已运行 App 被 -S 换成新 PID；断点/步进/变量和分离心跳 PASS。                                                                                                                                                                        |
+| `python java\android-jdwp-dap\tests\phone.py --launch --case f2-java --stop-mode terminate --evidence <launch-terminate-evidence>`   | 0；terminate→terminated→disconnect(false)，App 已结束、自有 forward 已清、既有 forward 保留。                                                                                                                                          |
+| `python java\android-jdwp-dap\tests\phone.py --launch --case f2-java --stop-mode disconnect --evidence <launch-disconnect-evidence>` | 0；disconnect(true)，App 已结束、自有 forward 已清、既有 forward 保留。                                                                                                                                                                |
+| `python java\android-jdwp-dap\tests\launch_failures.py --evidence <launch-failure-evidence>`                                         | 0；非法 filters、非法 roots、包未安装、无效组件、offline、unauthorized、pid 超时、真实 forward 后 JDWP handshake 失败、损坏 forward 输出，九个拒绝/回滚用例 PASS；同一个 adapter 随后成功 launch、新日志后 terminate/清理，重试 PASS。 |
+
+失败回归最初有两次测试本身的退出 1：无效组件返回真实 adb exit=1/Activity does not
+exist，而非测试最初期待的包装文案；成功重试后固定等 2.8 秒尚未收到日志
+（样例 worker 自带 2 秒延迟加 ART 启动）。分别修正断言以保留真实错误、改为
+10 秒有界 Logcat readiness，再全量通过；没有提高 adapter 超时掩盖失败。
+pid 超时注入只让 pidof 报空，真实 -D App 确实已启动；失败后通过真实 adb
+检查 PID 为空，证明 Waiting for debugger App 被清掉。整次失败用例
+11,167.5 ms 包含检查/启动、10 秒轮询和回滚，不把它当成功 launch 延迟。
+最后补验还遇到末次 pidof 命令耗尽剩余 deadline，测试因只得到 `adb shell
+timed out` 而退出 1；现在错误补充 pid 等待上下文，同时保留真实命令错误/
+cause，不放宽 deadline。最终 host 三组与真机失败/重试十组全部退出 0。
+offline/unauthorized 为回复注入，不拔线/改变测试手机授权或设置。
+
+| 真机 launch / detach 单次测量（ms） | launch 完成 | configurationDone→首停 | stepIn |  next | stepOut |
+| ----------------------------------- | ----------: | ---------------------: | -----: | ----: | ------: |
+| F1 Kotlin                           |      1049.4 |                 3588.9 |  184.3 | 155.7 |    74.2 |
+| F2 Java                             |       873.1 |                 3769.1 |  163.1 |  85.7 |    70.2 |
+| F3 mixed                            |       868.1 |                 3540.1 |  143.3 |  74.4 |    81.0 |
+
+首停包含样例 worker 初始 2 秒等待，以上不是性能预算。两条 Stop 的 F2 launch
+分别为 927.3/922.2 ms；完整断点步骤同样执行，不是只启动后立刻杀掉的替代测试。
+每个成功用例还检查没有 process/processid 事件、自有 forward 消失、此前
+forward 未被删除；测试结束卸载所有本任务样例，未记录设备标识。
+
+### 将来的 builtin / IDE 边界
+
+拟在 `crates\ide-dap\src\adapter.rs` 的 builtin 中增加 id
+`android-jdwp-dap`：command 为解析到的 JDK `java.exe`，
+args 为 `["--add-modules", "jdk.jdi", "-jar", "<bundled android-jdwp-dap.jar>"]`，
+transport 为 **stdio**，不设置 debugServer，不传手机 PID。find_config 优先查
+语言 debugger 再 builtin，因此必须独立选择新 adapter id，不修改 java/kotlin
+默认 adapter。jar 构建/资源定位跟随现有 Java helper 机制，不安装 SDK/JDK。
+
+IDE M2 只负责构建/安装；调试 action 构造 request=launch 的 extra_json 合同，
+其余断点/线程/帧/变量复用现有 DAP。Rust 不再管理 JDWP/forward/调试 App Stop；
+两条已有 launch Stop 协议由 adapter 处理。本任务没有真正添加 builtin、
+Rust IPC、资源打包或 UI 入口，不能声称“一键 IDE 真机调试已完成”。
 
 ## 真机第二阶段（完成）
 
@@ -262,15 +385,13 @@ lambda/匿名类布局。样例里的 inline library 调用可正常 next，但�
 `am start -D` 的 waiting-for-debugger 状态通过 JDWP 附加解除；测试在后台 worker
 命中。未拍摄手机 dialog、未验证前台 UI 文案/动画，不能将此协议证据当 GUI 截图。
 
-完整本轮记录可查看
-[真机 DAP 结果](C:\Users\admin.copilot\session-state\a6f5ce33-ccbc-4a33-b429-967a89938164\files\final-phone-evidence\phone-results.json)
-及
-[显式命令与清理证据](C:\Users\admin.copilot\session-state\a6f5ce33-ccbc-4a33-b429-967a89938164\files\final-phone-evidence\phone-commands.json)。
+完整原 attach 记录为本会话 `files\final-phone-evidence\phone-results.json`
+及 `phone-commands.json`，已作为会话附件保留。
 设备标识均替换为 `<test-phone>`；可重复测试代码与本文提交，构建产物不提交。
 
 ## 原型限制与集成建议
 
-原型只在 attach 到 loopback 后使用 JDI；用独立 suspend hold 避免
+原型在 host/port attach 或 launch 创建的 loopback forward 上使用 JDI；用独立 suspend hold 避免
 VMStart 在设置断点前恢复。ClassPrepare 在 SUSPEND_ALL 时安装延迟断点后恢复；
 普通断点和步骤让所有线程停住。用 Java stratum 的文件名+package path+line
 定位，不尝试 Kotlin SMAP 展开。源码根必须准确；同包同名、多 source-set
@@ -287,18 +408,18 @@ Kotlin suspend/inline/lambda 专用映射。对象字段读取不用 toString() 
 
 推荐后续按最小边界实现，不在本 spike 改 Rust：
 
-1. `crates\ide-android` 负责 adb devices（明确 serial）、显式 APK applicationId/
-   launcher activity 输入、install、am start -D、pid/JDWP 选择、tcp:0 forward
-   分配与 RAII 单条清理；不扫/导入 AGP model，不碰非目标包。build 用现有
-   Gradle process runner 和用户明确的 assemble task。
+1. `crates\ide-android` 仅负责 adb devices（明确 serial）、APK applicationId/
+   launcher activity 输入、build/install；不再管理调试启动、pid/JDWP、forward
+   或 Stop。后者集中在 adapter 的 launch 生命周期，不扫/导入 AGP model，
+   不碰非目标包。build 用现有 Gradle process runner 和用户明确的 assemble task。
 2. `crates\ide-dap\src\adapter.rs` 增加 android-jdwp-dap 配置；`ide-tools` 只定位
    已有 JDK 与自带 jar，不安装 Android SDK。Java helper 构建/打包与现有
    `java\*\build.py` 和 `crates\ide-sdk`/`ide-tools` 的资源机制保持一致。
-3. `crates\ide-dap\src\lib.rs` 保留通用 attach 配置顺序；Android session 保存
-   forward 所有权，只在结束/错误/取消时清理本条 forward。审计 stop/shutdown：
-   attach 必须 `terminateDebuggee=false`，不能把手机 pid 当 Windows pid，也
-   不应让“Stop”意外结束用户 app。当前 shutdown 已按 request=attach 发送 false；
-   原型刻意不发手机 process/systemProcessId 事件。与 Android 运行生命周期分别管理。
+3. `crates\ide-dap\src\lib.rs` 保留通用 launch/attach 配置顺序和 Stop 协议；
+   Android forward 所有权留在 adapter，不新增 Rust 端重复生命周期。
+   launch Stop 明确结束本次启动的 App；attach 必须 `terminateDebuggee=false`
+   保留原目标。不能把手机 pid 当 Windows pid；原型不发任何手机 process/
+   processid/systemProcessId 事件，避免现有 launch Stop 本机 kill 路径。
    原型接入前还应让该 adapter 的 setBreakpoints 错误像现有 Kotlin 特例一样向 UI
    传播，而不是通用分支仅 tracing 后返回未验证状态；禁用不支持的条件/
    expression/HCR 功能。不要为了 prototype 改动其他语言调试行为。
