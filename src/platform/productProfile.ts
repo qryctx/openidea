@@ -36,6 +36,7 @@ const V0_TOOL_WINDOWS = new Set([
   "run",
   "debug",
   "logcat",
+  "android",
   "terminal",
   "notifications",
 ]);

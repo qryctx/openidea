@@ -4187,6 +4187,7 @@ version = "0.1.41"
 dependencies = [
  "ide-core",
  "serde",
+ "serde_json",
  "specta",
  "tempfile",
  "which",

@@ -9,8 +9,10 @@
 
 mod model;
 mod process;
+mod project;
 
 pub use model::*;
+pub use project::{AndroidEnvironment, AndroidRunEvent, AndroidRunResult, build_install_launch, environment, stop_app};
 
 use ide_core::{CancellationToken, IdeError, IdeResult};
 use std::path::{Path, PathBuf};
@@ -86,7 +88,7 @@ pub fn adb_executable() -> Option<PathBuf> {
 fn executable() -> IdeResult<PathBuf> {
     adb_executable().ok_or_else(|| {
         IdeError::unavailable(
-            "adb was not found: install the Android SDK platform-tools, or set ANDROID_HOME (or OPENIDEA_ADB)",
+            "adb was not found: enter an Android SDK or adb path in the Android tool window, or set ANDROID_HOME (or OPENIDEA_ADB)",
         )
     })
 }
@@ -99,7 +101,16 @@ pub fn platform_tools_dir() -> Option<&'static Path> {
 
 /// Connected devices, online ones first; starting the adb daemon when needed.
 pub fn devices() -> IdeResult<Vec<AndroidDevice>> {
-    let adb = executable()?;
+    devices_with(None)
+}
+
+/// Connected devices using a user-selected SDK/adb path when supplied.
+pub fn devices_at(sdk_or_adb: Option<&Path>) -> IdeResult<Vec<AndroidDevice>> {
+    devices_with(sdk_or_adb)
+}
+
+fn devices_with(sdk_or_adb: Option<&Path>) -> IdeResult<Vec<AndroidDevice>> {
+    let adb = project::adb_executable(sdk_or_adb)?;
     let mut cmd = Command::new(adb);
     cmd.args(["devices", "-l"]);
     let out = process::run(cmd, DEVICES, None)?;
@@ -135,6 +146,22 @@ fn command(adb: &Path, serial: &str, tail: Option<u32>) -> Command {
         cmd.arg("-T").arg(lines.to_string());
     }
     cmd
+}
+
+/// Follows only one app process; `pid` is obtained after launch with `pidof`.
+pub fn logcat_app(
+    serial: &str,
+    pid: i32,
+    sdk_or_adb: Option<&Path>,
+    cancel: &CancellationToken,
+    on_batch: &mut dyn FnMut(Vec<LogcatLine>),
+) -> IdeResult<()> {
+    let adb = project::adb_executable(sdk_or_adb)?;
+    let mut cmd = command(&adb, serial, Some(TAIL_LINES));
+    cmd.arg(format!("--pid={pid}"));
+    let mut parse = |line: &str| Some(parse_line(line));
+    let (ok, stderr) = process::stream_batched(cmd, cancel, BATCH_IDLE, BATCH_MAX, &mut parse, on_batch)?;
+    if ok || cancel.is_cancelled() { Ok(()) } else { Err(failure(serial, &stderr)) }
 }
 
 /// Follows `serial`'s log until `cancel` fires, handing lines over in batches.
