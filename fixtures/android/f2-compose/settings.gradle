@@ -1,0 +1,3 @@
+rootProject.name = 'oas-compose'
+apply from: '../settings-common.gradle'
+include ':app'

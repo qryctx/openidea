@@ -1,0 +1,3 @@
+rootProject.name = 'oas-java-xml'
+apply from: '../settings-common.gradle'
+include ':app'

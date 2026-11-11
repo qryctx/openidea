@@ -1,0 +1,6 @@
+apply plugin: 'com.android.application'
+apply from: '../../android-common.gradle'
+android {
+    namespace = 'org.openandroidstudio.fixtures.xml'
+    defaultConfig { applicationId = namespace }
+}

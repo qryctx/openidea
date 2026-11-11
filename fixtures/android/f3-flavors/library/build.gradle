@@ -1,0 +1,3 @@
+apply plugin: 'com.android.library'
+apply from: '../../android-common.gradle'
+android { namespace = 'org.openandroidstudio.fixtures.library' }

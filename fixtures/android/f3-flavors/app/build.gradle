@@ -1,0 +1,28 @@
+apply plugin: 'com.android.application'
+apply from: '../../android-common.gradle'
+android {
+    namespace = 'org.openandroidstudio.fixtures.flavors'
+    defaultConfig { applicationId = namespace }
+    flavorDimensions += 'audience'
+    productFlavors {
+        publicDemo {
+            dimension = 'audience'
+            applicationIdSuffix = '.public'
+        }
+        internalDemo {
+            dimension = 'audience'
+            applicationIdSuffix = '.internal'
+        }
+    }
+    buildTypes {
+        debug {
+            applicationIdSuffix = '.debug'
+            buildConfigField 'boolean', 'TRACE_ENABLED', 'true'
+        }
+        release {
+            debuggable = false
+            buildConfigField 'boolean', 'TRACE_ENABLED', 'false'
+        }
+    }
+}
+dependencies { implementation project(':library') }

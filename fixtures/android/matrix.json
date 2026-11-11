@@ -1,0 +1,22 @@
+{
+  "conservative": {
+    "agp": "8.13.2",
+    "gradle": "8.14.6",
+    "kotlin": "2.3.21",
+    "composeCompiler": "2.3.21",
+    "kapt": "2.3.21",
+    "jdk": 21,
+    "compileSdk": 36,
+    "buildTools": "36.0.0"
+  },
+  "current": {
+    "agp": "9.5.1",
+    "gradle": "9.6.0",
+    "kotlin": "2.4.21",
+    "composeCompiler": "2.4.21",
+    "kapt": "9.5.1",
+    "jdk": 21,
+    "compileSdk": 36,
+    "buildTools": "36.0.0"
+  }
+}

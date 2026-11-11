@@ -1,0 +1,17 @@
+apply plugin: 'com.android.application'
+if (gradle.ext.fixtureToolchain.agp.startsWith('8.')) {
+    apply plugin: 'org.jetbrains.kotlin.android'
+    apply plugin: 'org.jetbrains.kotlin.kapt'
+} else {
+    apply plugin: 'com.android.legacy-kapt'
+}
+apply from: '../../android-common.gradle'
+android {
+    namespace = 'org.openandroidstudio.fixtures.generated'
+    defaultConfig { applicationId = namespace }
+}
+kotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17 } }
+dependencies {
+    implementation project(':processor')
+    kapt project(':processor')
+}
